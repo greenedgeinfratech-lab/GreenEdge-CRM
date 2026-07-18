@@ -1,0 +1,29 @@
+[
+  {
+    "id": "USR-1001",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@greenedge.test",
+    "role": "admin",
+    "status": "active",
+    "createdAt": "2025-01-15T09:30:00Z"
+  },
+  {
+    "id": "USR-1002",
+    "firstName": "Jane",
+    "lastName": "Smith",
+    "email": "jane.smith@greenedge.test",
+    "role": "manager",
+    "status": "active",
+    "createdAt": "2025-02-10T14:15:00Z"
+  },
+  {
+    "id": "USR-1003",
+    "firstName": "Bob",
+    "lastName": "Johnson",
+    "email": "bob.johnson@greenedge.test",
+    "role": "staff",
+    "status": "inactive",
+    "createdAt": "2025-03-20T11:45:00Z"
+  }
+]

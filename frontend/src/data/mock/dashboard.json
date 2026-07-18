@@ -1,0 +1,66 @@
+{
+  "kpis": [
+    {
+      "title": "Total Revenue",
+      "value": "$45,231.89",
+      "change": 20.1,
+      "trend": "up"
+    },
+    {
+      "title": "Active Leads",
+      "value": "2,350",
+      "change": 15.2,
+      "trend": "up"
+    },
+    {
+      "title": "Conversion Rate",
+      "value": "12.5%",
+      "change": -2.4,
+      "trend": "down"
+    },
+    {
+      "title": "Pending Invoices",
+      "value": "14",
+      "change": 0,
+      "trend": "neutral"
+    }
+  ],
+  "funnel": [
+    { "name": "Leads", "value": 5000, "fill": "#8884d8" },
+    { "name": "Prospects", "value": 3500, "fill": "#83a6ed" },
+    { "name": "Qualified", "value": 2000, "fill": "#8dd1e1" },
+    { "name": "Proposals", "value": 1000, "fill": "#82ca9d" },
+    { "name": "Customers", "value": 500, "fill": "#a4de6c" }
+  ],
+  "salesOverview": [
+    { "month": "Jan", "revenue": 4000, "target": 2400 },
+    { "month": "Feb", "revenue": 3000, "target": 1398 },
+    { "month": "Mar", "revenue": 2000, "target": 9800 },
+    { "month": "Apr", "revenue": 2780, "target": 3908 },
+    { "month": "May", "revenue": 1890, "target": 4800 },
+    { "month": "Jun", "revenue": 2390, "target": 3800 }
+  ],
+  "recentActivities": [
+    {
+      "id": "ACT-1",
+      "user": "Alice Cooper",
+      "action": "closed deal",
+      "target": "Acme Corp",
+      "timestamp": "10 minutes ago"
+    },
+    {
+      "id": "ACT-2",
+      "user": "Bob Smith",
+      "action": "added note to",
+      "target": "Wayne Enterprises",
+      "timestamp": "1 hour ago"
+    },
+    {
+      "id": "ACT-3",
+      "user": "Charlie Day",
+      "action": "sent quotation to",
+      "target": "Stark Industries",
+      "timestamp": "2 hours ago"
+    }
+  ]
+}
