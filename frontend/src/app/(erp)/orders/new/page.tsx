@@ -4,8 +4,9 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Plus, Trash2, ArrowLeft, Save, Printer, Upload, Check } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { leadsApi, ordersApi } from '@/services/crmService';
+import { useAuth } from '@/providers/AuthProvider';
 import CreateCustomerModal from '../../quotes/new/components/CreateCustomerModal';
 import SelectItemModal from '../../quotes/new/components/SelectItemModal';
 
@@ -20,8 +21,10 @@ interface OrderItemState {
   taxable: number;
   cgstPercent: number;
   sgstPercent: number;
+  igstPercent: number;
   cgstAmt: number;
   sgstAmt: number;
+  igstAmt: number;
   amt: number;
   leadTime: string;
 }
@@ -33,8 +36,10 @@ interface TermCondition {
 
 function CreateOrderContent() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const orderId = searchParams.get('id');
 
   const { data: leadsResponse } = useQuery({
@@ -59,6 +64,7 @@ function CreateOrderContent() {
   const [customer, setCustomer] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [address, setAddress] = useState('');
+  const [customerState, setCustomerState] = useState('');
   const [salesCredit, setSalesCredit] = useState('Piyush Nirmal');
   const [sameAsBilling, setSameAsBilling] = useState(true);
   const [shippingAddress, setShippingAddress] = useState('');
@@ -82,8 +88,10 @@ function CreateOrderContent() {
       taxable: 0,
       cgstPercent: 9,
       sgstPercent: 9,
+      igstPercent: 18,
       cgstAmt: 0,
       sgstAmt: 0,
+      igstAmt: 0,
       amt: 0,
       leadTime: ''
     }
@@ -108,7 +116,32 @@ function CreateOrderContent() {
   const [totalTaxable, setTotalTaxable] = useState(0);
   const [totalCgst, setTotalCgst] = useState(0);
   const [totalSgst, setTotalSgst] = useState(0);
+  const [totalIgst, setTotalIgst] = useState(0);
   const [grandTotal, setGrandTotal] = useState(0);
+
+  // Determine if interstate based on billing address state
+  const isInterstate = (() => {
+    const supplierState = (user?.company?.state || 'Uttar Pradesh').trim().toLowerCase().replace(/[\s.]/g, '');
+    const custStateClean = (customerState || '').trim().toLowerCase().replace(/[\s.]/g, '');
+    
+    if (custStateClean) {
+      if (custStateClean === 'up' || custStateClean === 'uttarpradesh') {
+        return supplierState !== 'up' && supplierState !== 'uttarpradesh';
+      }
+      return custStateClean !== supplierState;
+    }
+    
+    if (!address) return true; // Default to interstate if empty
+    const cleanAddr = address.toLowerCase();
+    const upPatterns = [/\bup\b/, /\bu\.p\b/, /uttar\s*pradesh/];
+    const hasUP = upPatterns.some(pattern => pattern.test(cleanAddr));
+    
+    if (supplierState === 'up' || supplierState === 'uttarpradesh') {
+      return !hasUP;
+    } else {
+      return !cleanAddr.includes(supplierState);
+    }
+  })();
 
   // Set default dates to today
   useEffect(() => {
@@ -142,6 +175,14 @@ function CreateOrderContent() {
       setShareEmail(o.share_email || false);
       setShareWhatsapp(o.share_whatsapp || false);
       setPrintAfterSave(o.print_after_save || false);
+      
+      const matchingLead = leads.find((l: any) => l.id === o.lead);
+      if (matchingLead) {
+        setCustomerState(matchingLead.state || '');
+      } else {
+        setCustomerState('');
+      }
+
       if (o.extra_charge && Number(o.extra_charge) > 0) setShowExtraField(true);
       if (o.custom_discount && Number(o.custom_discount) > 0) setShowDiscountField(true);
       if (o.items && o.items.length > 0) {
@@ -154,16 +195,72 @@ function CreateOrderContent() {
           rate: Number(item.rate),
           discount: Number(item.discount),
           taxable: Number(item.taxable),
-          cgstPercent: Number(item.cgst_percent),
-          sgstPercent: Number(item.sgst_percent),
-          cgstAmt: Number(item.cgst_amt),
-          sgstAmt: Number(item.sgst_amt),
+          cgstPercent: Number(item.cgst_percent || 0),
+          sgstPercent: Number(item.sgst_percent || 0),
+          igstPercent: Number(item.igst_percent || 0),
+          cgstAmt: Number(item.cgst_amt || 0),
+          sgstAmt: Number(item.sgst_amt || 0),
+          igstAmt: Number(item.igst_amt || 0),
           amt: Number(item.amt),
           leadTime: item.lead_time || ''
         })));
       }
     }
-  }, [orderResponse]);
+  }, [orderResponse, leads]);
+
+  // Populate from quote (Convert to Order)
+  useEffect(() => {
+    const fromQuote = searchParams.get('from_quote');
+    if (fromQuote === 'true') {
+      try {
+        const raw = localStorage.getItem('quote-to-order-data');
+        if (!raw) return;
+        const q = JSON.parse(raw);
+        localStorage.removeItem('quote-to-order-data');
+
+        setCustomer(q.lead_name || q.customer_name || '');
+        setContactPerson(q.contact_person || '');
+        setAddress(q.address || q.billing_address || '');
+        setSalesCredit(q.sales_credit || q.executive || '');
+        setShippingAddress(q.shipping_address || '');
+        setOrderDate(new Date().toISOString().split('T')[0]);
+        setDueDate(new Date().toISOString().split('T')[0]);
+        setCustomerPoNo('');
+        setNotes(q.notes || '');
+        setBankDetails(q.bank_details || '');
+        setTerms(q.terms_conditions?.map((t: any, idx: number) => ({ id: idx, text: t.text || t })) || []);
+        setExtraCharge(Number(q.extra_charge) || 0);
+        setCustomDiscount(Number(q.custom_discount) || 0);
+        if (q.extra_charge && Number(q.extra_charge) > 0) setShowExtraField(true);
+        if (q.custom_discount && Number(q.custom_discount) > 0) setShowDiscountField(true);
+
+        if (q.items && q.items.length > 0) {
+          setItems(q.items.map((item: any, idx: number) => ({
+            id: idx + 1,
+            itemDescription: item.item_description || '',
+            hsnSac: item.hsn_sac || '',
+            qty: item.qty || 1,
+            unit: item.unit || 'Nos',
+            rate: Number(item.rate) || 0,
+            discount: Number(item.discount) || 0,
+            taxable: Number(item.taxable) || 0,
+            cgstPercent: Number(item.cgst_percent || 9),
+            sgstPercent: Number(item.sgst_percent || 9),
+            igstPercent: Number(item.igst_percent || 18),
+            cgstAmt: Number(item.cgst_amt || 0),
+            sgstAmt: Number(item.sgst_amt || 0),
+            igstAmt: Number(item.igst_amt || 0),
+            amt: Number(item.amt) || 0,
+            leadTime: item.lead_time || ''
+          })));
+        }
+
+        showToast('Quote data loaded — review and save as Order', 'success');
+      } catch {
+        showToast('Failed to load quote data', 'error');
+      }
+    }
+  }, [searchParams, showToast]);
 
   const filteredLeads = leads.filter((l: any) => {
     const query = customer.toLowerCase().trim();
@@ -174,24 +271,77 @@ function CreateOrderContent() {
   });
 
   // Recalculate item amount
-  const updateItemAmount = (item: OrderItemState) => {
+  const updateItemAmount = (item: OrderItemState, forceInterstate?: boolean) => {
     const qty = Number(item.qty) || 0;
     const rate = Number(item.rate) || 0;
     const discount = Number(item.discount) || 0;
     
     const taxable = Math.max(0, (qty * rate) - discount);
-    const cgstAmt = (taxable * (item.cgstPercent || 0)) / 100;
-    const sgstAmt = (taxable * (item.sgstPercent || 0)) / 100;
-    const amt = taxable + cgstAmt + sgstAmt;
+    const checkInterstate = forceInterstate !== undefined ? forceInterstate : isInterstate;
+    
+    let cgstPercent = item.cgstPercent;
+    let sgstPercent = item.sgstPercent;
+    let igstPercent = item.igstPercent;
+    let cgstAmt = 0;
+    let sgstAmt = 0;
+    let igstAmt = 0;
+    
+    if (checkInterstate) {
+      igstAmt = (taxable * (igstPercent || 0)) / 100;
+      cgstPercent = 0;
+      sgstPercent = 0;
+      cgstAmt = 0;
+      sgstAmt = 0;
+    } else {
+      cgstAmt = (taxable * (cgstPercent || 0)) / 100;
+      sgstAmt = (taxable * (sgstPercent || 0)) / 100;
+      igstPercent = 0;
+      igstAmt = 0;
+    }
+    
+    const amt = taxable + cgstAmt + sgstAmt + igstAmt;
 
     return {
       ...item,
       taxable: parseFloat(taxable.toFixed(2)),
+      cgstPercent,
+      sgstPercent,
+      igstPercent,
       cgstAmt: parseFloat(cgstAmt.toFixed(2)),
       sgstAmt: parseFloat(sgstAmt.toFixed(2)),
+      igstAmt: parseFloat(igstAmt.toFixed(2)),
       amt: parseFloat(amt.toFixed(2))
     };
   };
+
+  // Recalculate all items when interstate status changes
+  useEffect(() => {
+    setItems(prev => prev.map(item => {
+      let cgstPercent = item.cgstPercent;
+      let sgstPercent = item.sgstPercent;
+      let igstPercent = item.igstPercent;
+      
+      if (isInterstate) {
+        if (!igstPercent) {
+          igstPercent = (cgstPercent + sgstPercent) || 18;
+        }
+      } else {
+        if (!cgstPercent && !sgstPercent) {
+          cgstPercent = (igstPercent / 2) || 9;
+          sgstPercent = (igstPercent / 2) || 9;
+        }
+      }
+      
+      const updated = {
+        ...item,
+        cgstPercent,
+        sgstPercent,
+        igstPercent
+      };
+      
+      return updateItemAmount(updated, isInterstate);
+    }));
+  }, [isInterstate]);
 
   const handleItemChange = (id: number, field: keyof OrderItemState, value: any) => {
     setItems(prev => prev.map(item => {
@@ -215,10 +365,12 @@ function CreateOrderContent() {
         rate: 0,
         discount: 0,
         taxable: 0,
-        cgstPercent: 9,
-        sgstPercent: 9,
+        cgstPercent: isInterstate ? 0 : 9,
+        sgstPercent: isInterstate ? 0 : 9,
+        igstPercent: isInterstate ? 18 : 0,
         cgstAmt: 0,
         sgstAmt: 0,
+        igstAmt: 0,
         amt: 0,
         leadTime: ''
       }
@@ -235,11 +387,21 @@ function CreateOrderContent() {
         const rate = item.rate || 0;
         const discount = 0;
         const taxable = qty * rate;
+        
+        const igstPercent = 18;
         const cgstPercent = 9;
         const sgstPercent = 9;
-        const cgstAmt = (taxable * cgstPercent) / 100;
-        const sgstAmt = (taxable * sgstPercent) / 100;
-        const amt = taxable + cgstAmt + sgstAmt;
+        let cgstAmt = 0;
+        let sgstAmt = 0;
+        let igstAmt = 0;
+        
+        if (isInterstate) {
+          igstAmt = (taxable * igstPercent) / 100;
+        } else {
+          cgstAmt = (taxable * cgstPercent) / 100;
+          sgstAmt = (taxable * sgstPercent) / 100;
+        }
+        const amt = taxable + cgstAmt + sgstAmt + igstAmt;
 
         return {
           id: Date.now() + idx,
@@ -250,10 +412,12 @@ function CreateOrderContent() {
           rate,
           discount,
           taxable,
-          cgstPercent,
-          sgstPercent,
-          cgstAmt,
-          sgstAmt,
+          cgstPercent: isInterstate ? 0 : cgstPercent,
+          sgstPercent: isInterstate ? 0 : sgstPercent,
+          igstPercent: isInterstate ? igstPercent : 0,
+          cgstAmt: isInterstate ? 0 : cgstAmt,
+          sgstAmt: isInterstate ? 0 : sgstAmt,
+          igstAmt: isInterstate ? igstAmt : 0,
           amt,
           leadTime: ''
         };
@@ -286,19 +450,22 @@ function CreateOrderContent() {
     let taxableSum = 0;
     let cgstSum = 0;
     let sgstSum = 0;
+    let igstSum = 0;
 
     items.forEach(item => {
       taxableSum += item.taxable;
-      cgstSum += item.cgstAmt;
-      sgstSum += item.sgstAmt;
+      cgstSum += item.cgstAmt || 0;
+      sgstSum += item.sgstAmt || 0;
+      igstSum += item.igstAmt || 0;
     });
 
-    const subTotal = taxableSum + cgstSum + sgstSum;
+    const subTotal = taxableSum + cgstSum + sgstSum + igstSum;
     const finalTotal = subTotal + Number(extraCharge) - Number(customDiscount);
 
     setTotalTaxable(parseFloat(taxableSum.toFixed(2)));
     setTotalCgst(parseFloat(cgstSum.toFixed(2)));
     setTotalSgst(parseFloat(sgstSum.toFixed(2)));
+    setTotalIgst(parseFloat(igstSum.toFixed(2)));
     setGrandTotal(parseFloat(finalTotal.toFixed(2)));
   }, [items, extraCharge, customDiscount]);
 
@@ -328,8 +495,9 @@ function CreateOrderContent() {
       extra_charge: extraCharge,
       custom_discount: customDiscount,
       total_taxable: totalTaxable,
-      total_cgst: totalCgst,
-      total_sgst: totalSgst,
+      total_cgst: isInterstate ? 0 : totalCgst,
+      total_sgst: isInterstate ? 0 : totalSgst,
+      total_igst: isInterstate ? totalIgst : 0,
       grand_total: grandTotal,
       share_email: shareEmail,
       share_whatsapp: shareWhatsapp,
@@ -343,10 +511,12 @@ function CreateOrderContent() {
         rate: item.rate,
         discount: item.discount,
         taxable: item.taxable,
-        cgst_percent: item.cgstPercent,
-        sgst_percent: item.sgstPercent,
-        cgst_amt: item.cgstAmt,
-        sgst_amt: item.sgstAmt,
+        cgst_percent: isInterstate ? 0 : item.cgstPercent,
+        sgst_percent: isInterstate ? 0 : item.sgstPercent,
+        igst_percent: isInterstate ? item.igstPercent : 0,
+        cgst_amt: isInterstate ? 0 : item.cgstAmt,
+        sgst_amt: isInterstate ? 0 : item.sgstAmt,
+        igst_amt: isInterstate ? item.igstAmt : 0,
         amt: item.amt,
         lead_time: item.leadTime
       }))
@@ -360,6 +530,7 @@ function CreateOrderContent() {
         await ordersApi.create(payload);
         showToast('Order saved successfully!', 'success');
       }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
 
       if (enterAnother) {
         // Reset form for next order
@@ -367,6 +538,7 @@ function CreateOrderContent() {
         setCustomer('');
         setContactPerson('');
         setAddress('');
+        setCustomerState('');
         setShippingAddress('');
         setReference('');
         setCustomerPoNo('');
@@ -382,10 +554,12 @@ function CreateOrderContent() {
             rate: 0,
             discount: 0,
             taxable: 0,
-            cgstPercent: 9,
-            sgstPercent: 9,
+            cgstPercent: isInterstate ? 0 : 9,
+            sgstPercent: isInterstate ? 0 : 9,
+            igstPercent: isInterstate ? 18 : 0,
             cgstAmt: 0,
             sgstAmt: 0,
+            igstAmt: 0,
             amt: 0,
             leadTime: ''
           }
@@ -474,6 +648,7 @@ function CreateOrderContent() {
                         setCustomer(lead.company_name || name);
                         setContactPerson(name);
                         setLeadId(lead.id);
+                        setCustomerState(lead.state || '');
                         
                         // Construct billing address
                         const addrParts = [];
@@ -663,8 +838,14 @@ function CreateOrderContent() {
                 <th className="py-2 px-1.5 w-24 text-right">Rate (₹)</th>
                 <th className="py-2 px-1.5 w-24 text-right">Discount (₹)</th>
                 <th className="py-2 px-1.5 w-24 text-right">Taxable (₹)</th>
-                <th className="py-2 px-1.5 w-16 text-right">CGST %</th>
-                <th className="py-2 px-1.5 w-16 text-right">SGST %</th>
+                {isInterstate ? (
+                  <th className="py-2 px-1.5 w-20 text-right">IGST %</th>
+                ) : (
+                  <>
+                    <th className="py-2 px-1.5 w-16 text-right">CGST %</th>
+                    <th className="py-2 px-1.5 w-16 text-right">SGST %</th>
+                  </>
+                )}
                 <th className="py-2 px-1.5 w-28 text-right">Amt (₹)</th>
                 <th className="py-2 px-1.5 w-12 text-center"></th>
               </tr>
@@ -732,22 +913,35 @@ function CreateOrderContent() {
                   <td className="py-2 px-1.5 text-right font-medium text-gray-900 pt-3">
                     {item.taxable.toFixed(2)}
                   </td>
-                  <td className="py-2 px-1.5">
-                    <input 
-                      type="number"
-                      value={item.cgstPercent}
-                      onChange={e => handleItemChange(item.id, 'cgstPercent', parseFloat(e.target.value) || 0)}
-                      className="border border-gray-300 rounded-sm p-1.5 w-full outline-none focus:border-green-600 text-right bg-white"
-                    />
-                  </td>
-                  <td className="py-2 px-1.5">
-                    <input 
-                      type="number"
-                      value={item.sgstPercent}
-                      onChange={e => handleItemChange(item.id, 'sgstPercent', parseFloat(e.target.value) || 0)}
-                      className="border border-gray-300 rounded-sm p-1.5 w-full outline-none focus:border-green-600 text-right bg-white"
-                    />
-                  </td>
+                  {isInterstate ? (
+                    <td className="py-2 px-1.5">
+                      <input 
+                        type="number"
+                        value={item.igstPercent}
+                        onChange={e => handleItemChange(item.id, 'igstPercent', parseFloat(e.target.value) || 0)}
+                        className="border border-gray-300 rounded-sm p-1.5 w-full outline-none focus:border-green-600 text-right bg-white"
+                      />
+                    </td>
+                  ) : (
+                    <>
+                      <td className="py-2 px-1.5">
+                        <input 
+                          type="number"
+                          value={item.cgstPercent}
+                          onChange={e => handleItemChange(item.id, 'cgstPercent', parseFloat(e.target.value) || 0)}
+                          className="border border-gray-300 rounded-sm p-1.5 w-full outline-none focus:border-green-600 text-right bg-white"
+                        />
+                      </td>
+                      <td className="py-2 px-1.5">
+                        <input 
+                          type="number"
+                          value={item.sgstPercent}
+                          onChange={e => handleItemChange(item.id, 'sgstPercent', parseFloat(e.target.value) || 0)}
+                          className="border border-gray-300 rounded-sm p-1.5 w-full outline-none focus:border-green-600 text-right bg-white"
+                        />
+                      </td>
+                    </>
+                  )}
                   <td className="py-2 px-1.5 text-right font-bold text-gray-900 pt-3">
                     {item.amt.toFixed(2)}
                   </td>
@@ -912,15 +1106,23 @@ function CreateOrderContent() {
                 <span>₹ {totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
 
-              <div className="flex justify-between items-center text-xs text-gray-500">
-                <span>Total CGST :</span>
-                <span>₹ {totalCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-
-              <div className="flex justify-between items-center text-xs text-gray-500">
-                <span>Total SGST :</span>
-                <span>₹ {totalSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
+              {isInterstate ? (
+                <div className="flex justify-between items-center text-xs text-gray-500">
+                  <span>Total IGST :</span>
+                  <span>₹ {totalIgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center text-xs text-gray-500">
+                    <span>Total CGST :</span>
+                    <span>₹ {totalCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-gray-500">
+                    <span>Total SGST :</span>
+                    <span>₹ {totalSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-between items-center text-base font-bold border-t border-gray-200 pt-3 text-green-800">
                 <span>Grand Total :</span>
@@ -985,11 +1187,12 @@ function CreateOrderContent() {
       <CreateCustomerModal 
         isOpen={isCreateCustomerOpen} 
         onClose={() => setIsCreateCustomerOpen(false)} 
-        onSuccess={(customerName, billingAddress, contactName, id) => {
+        onSuccess={(customerName, billingAddress, contactName, id, stateVal) => {
           setCustomer(customerName);
           setContactPerson(contactName);
           setLeadId(id);
           setAddress(billingAddress);
+          setCustomerState(stateVal || '');
           showToast('Customer created and selected!', 'success');
         }}
       />

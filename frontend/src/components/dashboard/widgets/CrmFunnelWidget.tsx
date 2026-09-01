@@ -55,7 +55,7 @@ export default function CrmFunnelWidget({ data, isLoading, error }: Props) {
         </div>
       ) : (
         /* Funnel bars — each is a navigation link */
-        <div className="flex-1 flex flex-col justify-around text-xs font-medium text-white">
+        <div className="flex-1 flex flex-col justify-around text-xs font-medium text-white overflow-hidden">
           {data.stages.map((stage) => (
             <Link key={stage.stage} href={stage.url} className="block">
               <div

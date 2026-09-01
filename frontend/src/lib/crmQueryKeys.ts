@@ -31,6 +31,12 @@ export const CRM_KEYS = {
 
   // Employees (for select dropdowns)
   employees: () => ['employees'],
+
+  // Customers
+  customers: (filters?: Record<string, unknown>) =>
+    filters ? ['customers', filters] : ['customers'],
+  customer: (id: string) => ['customer', id],
+  customerSummary: () => ['customer-summary'],
 } as const;
 
 /**

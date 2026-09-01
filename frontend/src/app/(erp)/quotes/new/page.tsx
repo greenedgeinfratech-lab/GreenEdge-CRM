@@ -6,6 +6,7 @@ import { Search, Plus, Trash2, ArrowLeft, Save, Printer, Upload, Check } from 'l
 import { useToast } from '@/providers/ToastProvider';
 import { useQuery } from '@tanstack/react-query';
 import { leadsApi, quotationsApi } from '@/services/crmService';
+import { useAuth } from '@/providers/AuthProvider';
 import CreateCustomerModal from './components/CreateCustomerModal';
 import SelectItemModal from './components/SelectItemModal';
 
@@ -20,8 +21,10 @@ interface QuoteItem {
   taxable: number;
   cgstPercent: number;
   sgstPercent: number;
+  igstPercent: number;
   cgstAmt: number;
   sgstAmt: number;
+  igstAmt: number;
   amt: number;
   leadTime: string;
 }
@@ -35,6 +38,7 @@ function CreateQuoteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const quoteId = searchParams.get('id');
 
   const { data: leadsResponse } = useQuery({
@@ -59,6 +63,7 @@ function CreateQuoteContent() {
   const [customer, setCustomer] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [address, setAddress] = useState('');
+  const [customerState, setCustomerState] = useState('');
   const [salesCredit, setSalesCredit] = useState('Piyush Nirmal');
   const [sameAsBilling, setSameAsBilling] = useState(true);
   const [shippingAddress, setShippingAddress] = useState('');
@@ -80,8 +85,10 @@ function CreateQuoteContent() {
       taxable: 0,
       cgstPercent: 9,
       sgstPercent: 9,
+      igstPercent: 18,
       cgstAmt: 0,
       sgstAmt: 0,
+      igstAmt: 0,
       amt: 0,
       leadTime: ''
     }
@@ -105,7 +112,32 @@ function CreateQuoteContent() {
   const [totalTaxable, setTotalTaxable] = useState(0);
   const [totalCgst, setTotalCgst] = useState(0);
   const [totalSgst, setTotalSgst] = useState(0);
+  const [totalIgst, setTotalIgst] = useState(0);
   const [grandTotal, setGrandTotal] = useState(0);
+
+  // Determine if interstate based on billing address state
+  const isInterstate = (() => {
+    const supplierState = (user?.company?.state || 'Uttar Pradesh').trim().toLowerCase().replace(/[\s.]/g, '');
+    const custStateClean = (customerState || '').trim().toLowerCase().replace(/[\s.]/g, '');
+    
+    if (custStateClean) {
+      if (custStateClean === 'up' || custStateClean === 'uttarpradesh') {
+        return supplierState !== 'up' && supplierState !== 'uttarpradesh';
+      }
+      return custStateClean !== supplierState;
+    }
+    
+    if (!address) return true; // Default to interstate if empty
+    const cleanAddr = address.toLowerCase();
+    const upPatterns = [/\bup\b/, /\bu\.p\b/, /uttar\s*pradesh/];
+    const hasUP = upPatterns.some(pattern => pattern.test(cleanAddr));
+    
+    if (supplierState === 'up' || supplierState === 'uttarpradesh') {
+      return !hasUP;
+    } else {
+      return !cleanAddr.includes(supplierState);
+    }
+  })();
 
   // Populate data when editing
   useEffect(() => {
@@ -131,6 +163,14 @@ function CreateQuoteContent() {
       setShareWhatsapp(q.share_whatsapp || false);
       setPrintAfterSave(q.print_after_save || false);
       setAlertOnOpening(q.alert_on_opening || false);
+      
+      const matchingLead = leads.find((l: any) => l.id === q.lead);
+      if (matchingLead) {
+        setCustomerState(matchingLead.state || '');
+      } else {
+        setCustomerState('');
+      }
+
       if (q.items && q.items.length > 0) {
         setItems(q.items.map((item: any, idx: number) => ({
           id: item.id || idx,
@@ -141,16 +181,18 @@ function CreateQuoteContent() {
           rate: Number(item.rate),
           discount: Number(item.discount),
           taxable: Number(item.taxable),
-          cgstPercent: Number(item.cgst_percent),
-          sgstPercent: Number(item.sgst_percent),
-          cgstAmt: Number(item.cgst_amt),
-          sgstAmt: Number(item.sgst_amt),
+          cgstPercent: Number(item.cgst_percent || 0),
+          sgstPercent: Number(item.sgst_percent || 0),
+          igstPercent: Number(item.igst_percent || 0),
+          cgstAmt: Number(item.cgst_amt || 0),
+          sgstAmt: Number(item.sgst_amt || 0),
+          igstAmt: Number(item.igst_amt || 0),
           amt: Number(item.amt),
           leadTime: item.lead_time || ''
         })));
       }
     }
-  }, [quoteResponse]);
+  }, [quoteResponse, leads]);
 
   const filteredLeads = leads.filter((l: any) => {
     const query = customer.toLowerCase().trim();
@@ -161,24 +203,77 @@ function CreateQuoteContent() {
   });
 
   // Recalculate item amount
-  const updateItemAmount = (item: QuoteItem) => {
+  const updateItemAmount = (item: QuoteItem, forceInterstate?: boolean) => {
     const qty = Number(item.qty) || 0;
     const rate = Number(item.rate) || 0;
     const discount = Number(item.discount) || 0;
     
     const taxable = Math.max(0, (qty * rate) - discount);
-    const cgstAmt = (taxable * (item.cgstPercent || 0)) / 100;
-    const sgstAmt = (taxable * (item.sgstPercent || 0)) / 100;
-    const amt = taxable + cgstAmt + sgstAmt;
+    const checkInterstate = forceInterstate !== undefined ? forceInterstate : isInterstate;
+    
+    let cgstPercent = item.cgstPercent;
+    let sgstPercent = item.sgstPercent;
+    let igstPercent = item.igstPercent;
+    let cgstAmt = 0;
+    let sgstAmt = 0;
+    let igstAmt = 0;
+    
+    if (checkInterstate) {
+      igstAmt = (taxable * (igstPercent || 0)) / 100;
+      cgstPercent = 0;
+      sgstPercent = 0;
+      cgstAmt = 0;
+      sgstAmt = 0;
+    } else {
+      cgstAmt = (taxable * (cgstPercent || 0)) / 100;
+      sgstAmt = (taxable * (sgstPercent || 0)) / 100;
+      igstPercent = 0;
+      igstAmt = 0;
+    }
+    
+    const amt = taxable + cgstAmt + sgstAmt + igstAmt;
 
     return {
       ...item,
       taxable: parseFloat(taxable.toFixed(2)),
+      cgstPercent,
+      sgstPercent,
+      igstPercent,
       cgstAmt: parseFloat(cgstAmt.toFixed(2)),
       sgstAmt: parseFloat(sgstAmt.toFixed(2)),
+      igstAmt: parseFloat(igstAmt.toFixed(2)),
       amt: parseFloat(amt.toFixed(2))
     };
   };
+
+  // Recalculate all items when interstate status changes
+  useEffect(() => {
+    setItems(prev => prev.map(item => {
+      let cgstPercent = item.cgstPercent;
+      let sgstPercent = item.sgstPercent;
+      let igstPercent = item.igstPercent;
+      
+      if (isInterstate) {
+        if (!igstPercent) {
+          igstPercent = (cgstPercent + sgstPercent) || 18;
+        }
+      } else {
+        if (!cgstPercent && !sgstPercent) {
+          cgstPercent = (igstPercent / 2) || 9;
+          sgstPercent = (igstPercent / 2) || 9;
+        }
+      }
+      
+      const updated = {
+        ...item,
+        cgstPercent,
+        sgstPercent,
+        igstPercent
+      };
+      
+      return updateItemAmount(updated, isInterstate);
+    }));
+  }, [isInterstate]);
 
   const handleItemChange = (id: number, field: keyof QuoteItem, value: any) => {
     setItems(prev => prev.map(item => {
@@ -202,10 +297,12 @@ function CreateQuoteContent() {
         rate: 0,
         discount: 0,
         taxable: 0,
-        cgstPercent: 9,
-        sgstPercent: 9,
+        cgstPercent: isInterstate ? 0 : 9,
+        sgstPercent: isInterstate ? 0 : 9,
+        igstPercent: isInterstate ? 18 : 0,
         cgstAmt: 0,
         sgstAmt: 0,
+        igstAmt: 0,
         amt: 0,
         leadTime: ''
       }
@@ -222,11 +319,21 @@ function CreateQuoteContent() {
         const rate = item.rate || 0;
         const discount = 0;
         const taxable = qty * rate;
+        
+        const igstPercent = 18;
         const cgstPercent = 9;
         const sgstPercent = 9;
-        const cgstAmt = (taxable * cgstPercent) / 100;
-        const sgstAmt = (taxable * sgstPercent) / 100;
-        const amt = taxable + cgstAmt + sgstAmt;
+        let cgstAmt = 0;
+        let sgstAmt = 0;
+        let igstAmt = 0;
+        
+        if (isInterstate) {
+          igstAmt = (taxable * igstPercent) / 100;
+        } else {
+          cgstAmt = (taxable * cgstPercent) / 100;
+          sgstAmt = (taxable * sgstPercent) / 100;
+        }
+        const amt = taxable + cgstAmt + sgstAmt + igstAmt;
 
         return {
           id: Date.now() + idx,
@@ -237,10 +344,12 @@ function CreateQuoteContent() {
           rate,
           discount,
           taxable,
-          cgstPercent,
-          sgstPercent,
-          cgstAmt,
-          sgstAmt,
+          cgstPercent: isInterstate ? 0 : cgstPercent,
+          sgstPercent: isInterstate ? 0 : sgstPercent,
+          igstPercent: isInterstate ? igstPercent : 0,
+          cgstAmt: isInterstate ? 0 : cgstAmt,
+          sgstAmt: isInterstate ? 0 : sgstAmt,
+          igstAmt: isInterstate ? igstAmt : 0,
           amt,
           leadTime: ''
         };
@@ -273,19 +382,22 @@ function CreateQuoteContent() {
     let taxableSum = 0;
     let cgstSum = 0;
     let sgstSum = 0;
+    let igstSum = 0;
 
     items.forEach(item => {
       taxableSum += item.taxable;
-      cgstSum += item.cgstAmt;
-      sgstSum += item.sgstAmt;
+      cgstSum += item.cgstAmt || 0;
+      sgstSum += item.sgstAmt || 0;
+      igstSum += item.igstAmt || 0;
     });
 
-    const subTotal = taxableSum + cgstSum + sgstSum;
+    const subTotal = taxableSum + cgstSum + sgstSum + igstSum;
     const finalTotal = subTotal + Number(extraCharge) - Number(customDiscount);
 
     setTotalTaxable(parseFloat(taxableSum.toFixed(2)));
     setTotalCgst(parseFloat(cgstSum.toFixed(2)));
     setTotalSgst(parseFloat(sgstSum.toFixed(2)));
+    setTotalIgst(parseFloat(igstSum.toFixed(2)));
     setGrandTotal(parseFloat(finalTotal.toFixed(2)));
   }, [items, extraCharge, customDiscount]);
 
@@ -314,8 +426,9 @@ function CreateQuoteContent() {
       extra_charge: extraCharge,
       custom_discount: customDiscount,
       total_taxable: totalTaxable,
-      total_cgst: totalCgst,
-      total_sgst: totalSgst,
+      total_cgst: isInterstate ? 0 : totalCgst,
+      total_sgst: isInterstate ? 0 : totalSgst,
+      total_igst: isInterstate ? totalIgst : 0,
       grand_total: grandTotal,
       share_email: shareEmail,
       share_whatsapp: shareWhatsapp,
@@ -330,10 +443,12 @@ function CreateQuoteContent() {
         rate: item.rate,
         discount: item.discount,
         taxable: item.taxable,
-        cgst_percent: item.cgstPercent,
-        sgst_percent: item.sgstPercent,
-        cgst_amt: item.cgstAmt,
-        sgst_amt: item.sgstAmt,
+        cgst_percent: isInterstate ? 0 : item.cgstPercent,
+        sgst_percent: isInterstate ? 0 : item.sgstPercent,
+        igst_percent: isInterstate ? item.igstPercent : 0,
+        cgst_amt: isInterstate ? 0 : item.cgstAmt,
+        sgst_amt: isInterstate ? 0 : item.sgstAmt,
+        igst_amt: isInterstate ? item.igstAmt : 0,
         amt: item.amt,
         lead_time: item.leadTime
       }))
@@ -421,6 +536,7 @@ function CreateQuoteContent() {
                         setCustomer(lead.company_name || name);
                         setContactPerson(name);
                         setLeadId(lead.id);
+                        setCustomerState(lead.state || '');
                         
                         // Construct structured address
                         const addrParts = [];
@@ -585,8 +701,14 @@ function CreateQuoteContent() {
                 <th className="border border-gray-200 px-2 py-2 w-28">Rate (₹)</th>
                 <th className="border border-gray-200 px-2 py-2 w-28">Discount (₹)</th>
                 <th className="border border-gray-200 px-2 py-2 w-28">Taxable (₹)</th>
-                <th className="border border-gray-200 px-2 py-2 w-20">CGST (%)</th>
-                <th className="border border-gray-200 px-2 py-2 w-20">SGST (%)</th>
+                {isInterstate ? (
+                  <th className="border border-gray-200 px-2 py-2 w-20">IGST (%)</th>
+                ) : (
+                  <>
+                    <th className="border border-gray-200 px-2 py-2 w-20">CGST (%)</th>
+                    <th className="border border-gray-200 px-2 py-2 w-20">SGST (%)</th>
+                  </>
+                )}
                 <th className="border border-gray-200 px-2 py-2 w-32">Amt (₹)</th>
                 <th className="border border-gray-200 px-2 py-2 w-28">Lead Time</th>
                 <th className="border border-gray-200 px-2 py-2 text-center w-12"></th>
@@ -652,22 +774,35 @@ function CreateQuoteContent() {
                   <td className="border border-gray-200 px-2 py-1.5 text-right font-medium text-gray-700 bg-gray-50">
                     {item.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="border border-gray-200 px-2 py-1.5">
-                    <input 
-                      type="number" 
-                      value={item.cgstPercent} 
-                      onChange={e => handleItemChange(item.id, 'cgstPercent', parseFloat(e.target.value) || 0)}
-                      className="w-full px-2 py-1 outline-none border border-transparent focus:border-green-600 rounded-sm text-right"
-                    />
-                  </td>
-                  <td className="border border-gray-200 px-2 py-1.5">
-                    <input 
-                      type="number" 
-                      value={item.sgstPercent} 
-                      onChange={e => handleItemChange(item.id, 'sgstPercent', parseFloat(e.target.value) || 0)}
-                      className="w-full px-2 py-1 outline-none border border-transparent focus:border-green-600 rounded-sm text-right"
-                    />
-                  </td>
+                  {isInterstate ? (
+                    <td className="border border-gray-200 px-2 py-1.5">
+                      <input 
+                        type="number" 
+                        value={item.igstPercent} 
+                        onChange={e => handleItemChange(item.id, 'igstPercent', parseFloat(e.target.value) || 0)}
+                        className="w-full px-2 py-1 outline-none border border-transparent focus:border-green-600 rounded-sm text-right bg-white"
+                      />
+                    </td>
+                  ) : (
+                    <>
+                      <td className="border border-gray-200 px-2 py-1.5">
+                        <input 
+                          type="number" 
+                          value={item.cgstPercent} 
+                          onChange={e => handleItemChange(item.id, 'cgstPercent', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1 outline-none border border-transparent focus:border-green-600 rounded-sm text-right"
+                        />
+                      </td>
+                      <td className="border border-gray-200 px-2 py-1.5">
+                        <input 
+                          type="number" 
+                          value={item.sgstPercent} 
+                          onChange={e => handleItemChange(item.id, 'sgstPercent', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1 outline-none border border-transparent focus:border-green-600 rounded-sm text-right"
+                        />
+                      </td>
+                    </>
+                  )}
                   <td className="border border-gray-200 px-2 py-1.5 text-right font-bold text-[#145a32] bg-gray-50">
                     {item.amt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
@@ -807,14 +942,23 @@ function CreateQuoteContent() {
                   <span className="text-gray-500">Taxable Value:</span>
                   <span className="font-semibold">₹ {totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">CGST Amount:</span>
-                  <span className="font-semibold text-gray-600">₹ {totalCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">SGST Amount:</span>
-                  <span className="font-semibold text-gray-600">₹ {totalSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
+                {isInterstate ? (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">IGST Amount:</span>
+                    <span className="font-semibold text-gray-600">₹ {totalIgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">CGST Amount:</span>
+                      <span className="font-semibold text-gray-600">₹ {totalCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">SGST Amount:</span>
+                      <span className="font-semibold text-gray-600">₹ {totalSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex flex-col gap-3">
@@ -889,8 +1033,9 @@ function CreateQuoteContent() {
                 extra_charge: extraCharge,
                 custom_discount: customDiscount,
                 total_taxable: totalTaxable,
-                total_cgst: totalCgst,
-                total_sgst: totalSgst,
+                total_cgst: isInterstate ? 0 : totalCgst,
+                total_sgst: isInterstate ? 0 : totalSgst,
+                total_igst: isInterstate ? totalIgst : 0,
                 grand_total: grandTotal,
                 share_email: shareEmail,
                 share_whatsapp: shareWhatsapp,
@@ -905,10 +1050,12 @@ function CreateQuoteContent() {
                   rate: item.rate,
                   discount: item.discount,
                   taxable: item.taxable,
-                  cgst_percent: item.cgstPercent,
-                  sgst_percent: item.sgstPercent,
-                  cgst_amt: item.cgstAmt,
-                  sgst_amt: item.sgstAmt,
+                  cgst_percent: isInterstate ? 0 : item.cgstPercent,
+                  sgst_percent: isInterstate ? 0 : item.sgstPercent,
+                  igst_percent: isInterstate ? item.igstPercent : 0,
+                  cgst_amt: isInterstate ? 0 : item.cgstAmt,
+                  sgst_amt: isInterstate ? 0 : item.sgstAmt,
+                  igst_amt: isInterstate ? item.igstAmt : 0,
                   amt: item.amt,
                   lead_time: item.leadTime
                 }))
@@ -927,6 +1074,7 @@ function CreateQuoteContent() {
                 setCustomer('');
                 setContactPerson('');
                 setAddress('');
+                setCustomerState('');
                 setLeadId(null);
                 setItems([{
                   id: Date.now(),
@@ -937,10 +1085,12 @@ function CreateQuoteContent() {
                   rate: 0,
                   discount: 0,
                   taxable: 0,
-                  cgstPercent: 9,
-                  sgstPercent: 9,
+                  cgstPercent: isInterstate ? 0 : 9,
+                  sgstPercent: isInterstate ? 0 : 9,
+                  igstPercent: isInterstate ? 18 : 0,
                   cgstAmt: 0,
                   sgstAmt: 0,
+                  igstAmt: 0,
                   amt: 0,
                   leadTime: ''
                 }]);
@@ -963,11 +1113,12 @@ function CreateQuoteContent() {
       <CreateCustomerModal 
         isOpen={isCreateCustomerOpen}
         onClose={() => setIsCreateCustomerOpen(false)}
-        onSuccess={(customerName, billingAddress, contactName, newId) => {
+        onSuccess={(customerName, billingAddress, contactName, newId, stateVal) => {
           setCustomer(customerName);
           setContactPerson(contactName);
           setAddress(billingAddress);
           setLeadId(newId);
+          setCustomerState(stateVal || '');
         }}
       />
 

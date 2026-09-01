@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     User, Company, CostCenter, Team, Branch, Department, Designation,
-    Permission, Role, EmployeeProfile, EmployeeDocument
+    Permission, Role, EmployeeProfile, EmployeeDocument, AttendanceRecord, SalaryRecord
 )
 from common.validators import validate_gstin, validate_pan, validate_cin, validate_mobile, validate_pincode
 
@@ -78,6 +78,8 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     mobile = serializers.CharField(validators=[validate_mobile], required=False, allow_blank=True)
+    # Created by EmployeeProfileViewSet when a new executive is saved.
+    employee_code = serializers.CharField(required=False, allow_blank=True)
     
     # Nested fields for read operations
     department_details = DepartmentSerializer(source='department', read_only=True)
@@ -92,11 +94,52 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+
+class AttendanceRecordSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AttendanceRecord
+        fields = '__all__'
+        read_only_fields = ['id', 'company', 'created_at', 'updated_at', 'created_by', 'updated_by']
+
+    def get_employee_name(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'.strip()
+
+    def validate_employee(self, employee):
+        request = self.context['request']
+        if employee.company_id != request.user.company_id:
+            raise serializers.ValidationError('Employee must belong to your company.')
+        return employee
+
+
+class SalaryRecordSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SalaryRecord
+        fields = '__all__'
+        read_only_fields = ['id', 'company', 'net_salary', 'created_at', 'updated_at', 'created_by', 'updated_by']
+
+    def get_employee_name(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'.strip()
+
+    def validate_employee(self, employee):
+        request = self.context['request']
+        if employee.company_id != request.user.company_id:
+            raise serializers.ValidationError('Employee must belong to your company.')
+        return employee
+
+    def validate_month(self, month):
+        if month.day != 1:
+            raise serializers.ValidationError('Payroll month must be the first day of the month.')
+        return month
+
 class UserSerializer(serializers.ModelSerializer):
     company = CompanySerializer(read_only=True)
     employee_profile = EmployeeProfileSerializer(read_only=True)
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture', 'company', 'employee_profile', 'is_active', 'date_joined']
-        read_only_fields = ['id', 'email', 'is_active', 'date_joined']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture', 'company', 'employee_profile', 'is_active', 'is_staff', 'is_superuser', 'date_joined']
+        read_only_fields = ['id', 'email', 'is_active', 'is_staff', 'is_superuser', 'date_joined']

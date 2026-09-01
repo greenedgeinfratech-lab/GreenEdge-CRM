@@ -41,7 +41,8 @@ class LeadListSerializer(serializers.ModelSerializer):
         model = Lead
         fields = [
             'id', 'lead_number', 'full_name', 'first_name', 'last_name',
-            'company_name', 'mobile', 'email', 'city', 'state',
+            'company_name', 'mobile', 'email', 'gst_number',
+            'address', 'city', 'state', 'country', 'pincode',
             'stage_name', 'stage_color', 'source_name',
             'estimated_value', 'priority', 'status',
             'lead_score', 'is_starred', 'is_duplicate',

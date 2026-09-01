@@ -75,6 +75,33 @@ export default function NewLeadPage() {
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
+  const formatApiError = (err: any) => {
+    const response = err?.response?.data;
+    if (!response) return 'Failed to create lead. Please check your inputs.';
+
+    if (response.errors) {
+      const errors = response.errors;
+      if (typeof errors === 'string') return errors;
+      if (Array.isArray(errors)) return errors.join(' ');
+      return Object.values(errors)
+        .flatMap((entry: any) => Array.isArray(entry) ? entry : [entry])
+        .join(' ');
+    }
+
+    if (response.detail) return response.detail;
+    if (response.message) return response.message;
+    if (typeof response === 'string') return response;
+    return JSON.stringify(response);
+  };
+
+  const sanitizePayload = (data: LeadCreatePayload) => {
+    return Object.entries(data).reduce((acc, [key, value]) => {
+      if (value === '') return acc;
+      (acc as any)[key] = value;
+      return acc;
+    }, {} as LeadCreatePayload);
+  };
+
   const createMutation = useMutation({
     mutationFn: (data: LeadCreatePayload) => leadsApi.create(data),
     onSuccess: (res: any) => {
@@ -82,10 +109,7 @@ export default function NewLeadPage() {
       router.push(`/crm/${res.data.data.id}`);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.errors?.detail ||
-                  err.response?.data?.detail ||
-                  'Failed to create lead. Please check your inputs.';
-      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setError(formatApiError(err));
     },
   });
 
@@ -132,7 +156,7 @@ export default function NewLeadPage() {
     }
 
     createMutation.mutate({
-      ...formData,
+      ...sanitizePayload(formData),
       override_duplicate: force,
     });
   };

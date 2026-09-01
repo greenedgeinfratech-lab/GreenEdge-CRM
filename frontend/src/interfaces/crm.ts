@@ -420,8 +420,10 @@ export interface QuotationItem {
   taxable: number;
   cgst_percent: number;
   sgst_percent: number;
+  igst_percent?: number;
   cgst_amt: number;
   sgst_amt: number;
+  igst_amt?: number;
   amt: number;
   lead_time?: string;
 }
@@ -448,6 +450,7 @@ export interface Quotation {
   total_taxable: number;
   total_cgst: number;
   total_sgst: number;
+  total_igst?: number;
   grand_total: number;
   share_email: boolean;
   share_whatsapp: boolean;
@@ -462,3 +465,273 @@ export interface Quotation {
   issued_by_name?: string;
 }
 
+// ── Product Catalog ──────────────────────────────────────────
+
+export interface ProductCatalog {
+  id: string;
+  name: string;
+  code?: string;
+  item_type: 'Stock' | 'Service';
+  category?: string;
+  sub_category?: string;
+  classification?: string;
+  importance?: string;
+  opng_qty?: number;
+  unit: string;
+  at_store?: string;
+  source?: string;
+  min_stock_qty?: number;
+  lead_time?: number;
+  std_cost?: number;
+  purch_cost?: number;
+  rate: number;
+  hsn_sac?: string;
+  cgst_percent: number;
+  sgst_percent: number;
+  igst_percent: number;
+  mrp?: number;
+  description?: string;
+  internal_notes?: string;
+  tags?: string[];
+  stock_qty: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ── Invoices ──────────────────────────────────────────────────
+
+export interface InvoiceItem {
+  id?: string;
+  item_description: string;
+  hsn_sac?: string;
+  qty: number;
+  unit: string;
+  rate: number;
+  discount: number;
+  taxable: number;
+  cgst_percent: number;
+  sgst_percent: number;
+  igst_percent?: number;
+  cgst_amt: number;
+  sgst_amt: number;
+  igst_amt?: number;
+  amt: number;
+}
+
+export interface Invoice {
+  id: string;
+  type: string;
+  lead?: string | null;
+  lead_name?: string;
+  customer_name: string;
+  contact_person?: string;
+  sales_credit?: string;
+  billing_address?: string;
+  same_as_billing: boolean;
+  shipping_details?: string;
+  invoice_no: string;
+  reference?: string;
+  invoice_date?: string;
+  due_date?: string;
+  customer_ledger?: string;
+  income_ledger?: string;
+  voucher_no?: string;
+  voucher_date?: string;
+  notes?: string;
+  bank_details?: string;
+  terms_conditions?: string[];
+  recovery_amt?: number;
+  recovery_notes?: string;
+  invoice_status?: string;
+  status_internal_notes?: string;
+  share_email?: boolean;
+  share_whatsapp?: boolean;
+  print_after_save?: boolean;
+  extra_charge?: number;
+  custom_discount?: number;
+  total_taxable?: number;
+  total_cgst?: number;
+  total_sgst?: number;
+  total_igst?: number;
+  grand_total?: number;
+  items?: InvoiceItem[];
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  issued_by_name?: string;
+}
+
+// ── Purchase Orders ───────────────────────────────────────────────
+
+export interface PurchaseOrderItem {
+  id?: string;
+  item_description: string;
+  hsn_sac?: string;
+  qty: number;
+  unit: string;
+  rate: number;
+  discount: number;
+  taxable: number;
+  cgst_percent: number;
+  sgst_percent: number;
+  igst_percent?: number;
+  cgst_amt: number;
+  sgst_amt: number;
+  igst_amt?: number;
+  amt: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  supplier_name: string;
+  contact_person?: string;
+  source_address?: string;
+  shipping_details?: string;
+  po_no: string;
+  reference?: string;
+  po_date?: string;
+  due_date?: string;
+  notes?: string;
+  terms_conditions?: string[];
+  status?: string;
+  share_email?: boolean;
+  share_whatsapp?: boolean;
+  print_after_save?: boolean;
+  extra_charge?: number;
+  custom_discount?: number;
+  total_taxable?: number;
+  total_cgst?: number;
+  total_sgst?: number;
+  total_igst?: number;
+  grand_total?: number;
+  items?: PurchaseOrderItem[];
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  created_by_name?: string;
+}
+
+// ── Customer ──────────────────────────────────────────────────
+
+export interface CustomerContact {
+  id?: string;
+  name: string;
+  designation?: string;
+  mobile?: string;
+  email?: string;
+  is_primary?: boolean;
+}
+
+export interface Customer {
+  id: string;
+  customer_number?: string;
+  name: string;
+  company_name?: string;
+  customer_type?: string;
+  status?: string;
+  mobile?: string;
+  alternate_mobile?: string;
+  email?: string;
+  secondary_email?: string;
+  phone?: string;
+  website?: string;
+  gst_number?: string;
+  pan_number?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  billing_address?: string;
+  shipping_address?: string;
+  industry?: string;
+  source?: string;
+  tags?: string[];
+  credit_limit?: number;
+  outstanding?: number;
+  total_orders?: number;
+  total_invoices?: number;
+  assigned_to?: string;
+  assigned_to_name?: string;
+  converted_from_lead?: string;
+  converted_from_lead_name?: string;
+  notes?: string;
+  contacts?: CustomerContact[];
+  contact_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+}
+
+export interface CustomerCreatePayload {
+  name: string;
+  company_name?: string;
+  customer_type?: string;
+  status?: string;
+  mobile?: string;
+  alternate_mobile?: string;
+  email?: string;
+  secondary_email?: string;
+  phone?: string;
+  website?: string;
+  gst_number?: string;
+  pan_number?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  billing_address?: string;
+  shipping_address?: string;
+  industry?: string;
+  source?: string;
+  tags?: string[];
+  credit_limit?: number;
+  outstanding?: number;
+  assigned_to?: string;
+  msme_no?: string;
+  category?: string;
+  total_orders?: number;
+  notes?: string;
+  contacts?: CustomerContact[];
+}
+
+export type CustomerUpdatePayload = Partial<CustomerCreatePayload>;
+
+// ── Transactions (Journal Entries) ──────────────────────────
+
+export interface Transaction {
+  id: string;
+  date: string;
+  voucher_no: string;
+  debit_ledger: string;
+  debit_ledger_name: string;
+  credit_ledger: string;
+  credit_ledger_name: string;
+  amount: number;
+  narration: string;
+  reference_type?: string;
+  reference_id?: string;
+  reference_no?: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  created_by_name: string;
+}
+
+// ── Invoice Payments ─────────────────────────────────────────
+
+export interface InvoicePayment {
+  id: string;
+  invoice: string;
+  invoice_no: string;
+  customer_name: string;
+  amount: number;
+  payment_date: string;
+  method: 'Cash' | 'Bank Transfer' | 'UPI' | 'Cheque' | 'NEFT' | 'RTGS' | 'Other';
+  reference_no?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+}

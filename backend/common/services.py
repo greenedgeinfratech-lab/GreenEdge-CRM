@@ -40,7 +40,7 @@ class FileUploadService:
 
 class NumberingService:
     @staticmethod
-    def generate_next_number(company, entity_name):
+    def generate_number(company, entity_name, prefix=None):
         """
         Safely generates the next sequence number for a given company and entity.
         Uses a database transaction to prevent race conditions.
@@ -54,7 +54,7 @@ class NumberingService:
                 company=company,
                 entity_name=entity_name,
                 defaults={
-                    'prefix': f"{entity_name[:3].upper()}-",
+                    'prefix': f"{prefix or entity_name[:3].upper()}-",
                     'padding_length': 4,
                     'current_value': 0
                 }
@@ -69,3 +69,8 @@ class NumberingService:
             number = str(sequence.current_value).zfill(sequence.padding_length)
 
             return f"{prefix}{number}{suffix}"
+
+    @staticmethod
+    def generate_next_number(company, entity_name):
+        """Backward-compatible helper for entities using the default prefix."""
+        return NumberingService.generate_number(company, entity_name)

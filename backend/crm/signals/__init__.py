@@ -31,9 +31,14 @@ def lead_post_save(sender, instance, created, **kwargs):
     if created:
         return  # Score already calculated by LeadService.create_lead
 
-    # Future: dispatch Celery task
-    # from crm.tasks import recalculate_lead_score
-    # recalculate_lead_score.delay(str(instance.id))
+    # Synchronous recalculation (switch to Celery task when workers are available)
+    try:
+        from crm.services.score_service import ScoreService
+        new_score = ScoreService.calculate(instance)
+        if new_score != instance.lead_score:
+            Lead.objects.filter(pk=instance.pk).update(lead_score=new_score)
+    except Exception:
+        pass  # Don't break saves if scoring fails
 
 
 @receiver(post_save, sender=LeadFollowup)

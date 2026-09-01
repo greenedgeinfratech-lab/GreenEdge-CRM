@@ -218,6 +218,55 @@ class EmployeeProfile(TenantBaseModel):
     class Meta:
         unique_together = ('company', 'employee_code')
 
+
+class AttendanceRecord(TenantBaseModel):
+    """A daily attendance entry for an employee."""
+    STATUS_CHOICES = [
+        ('Present', 'Present'),
+        ('Absent', 'Absent'),
+        ('Half Day', 'Half Day'),
+        ('Leave', 'Leave'),
+        ('Holiday', 'Holiday'),
+    ]
+
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE, related_name='attendance_records')
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Present')
+    check_in = models.TimeField(null=True, blank=True)
+    check_out = models.TimeField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-date', 'employee__first_name']
+        unique_together = ('company', 'employee', 'date')
+
+
+class SalaryRecord(TenantBaseModel):
+    """Monthly payroll record. Net salary is derived from the salary components."""
+    PAYMENT_STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Processed', 'Processed'),
+        ('Paid', 'Paid'),
+    ]
+
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE, related_name='salary_records')
+    month = models.DateField(help_text='Use the first day of the payroll month.')
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    allowances = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='Draft')
+    paid_on = models.DateField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-month', 'employee__first_name']
+        unique_together = ('company', 'employee', 'month')
+
+    def save(self, *args, **kwargs):
+        self.net_salary = self.basic_salary + self.allowances - self.deductions
+        super().save(*args, **kwargs)
+
 class EmployeeDocument(TenantBaseModel):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE, related_name='documents')
     document_type = models.CharField(max_length=100) # e.g., Offer Letter, ID Proof

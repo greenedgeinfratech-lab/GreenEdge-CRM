@@ -7,6 +7,7 @@ import { useToast } from '@/providers/ToastProvider';
 interface EnterItemModalProps {
   isOpen: boolean;
   onClose: () => void;
+  itemType?: 'stock' | 'service';
   onSaveItem: (itemDetails: {
     name: string;
     rate: number;
@@ -19,6 +20,7 @@ interface EnterItemModalProps {
 export default function EnterItemModal({
   isOpen,
   onClose,
+  itemType = 'stock',
   onSaveItem
 }: EnterItemModalProps) {
   const { showToast } = useToast();
@@ -27,7 +29,7 @@ export default function EnterItemModal({
   const [code, setCode] = useState('');
   const [category, setCategory] = useState('');
   const [subCategory, setSubCategory] = useState('');
-  const [classification, setClassification] = useState('Product');
+  const [classification, setClassification] = useState(itemType === 'service' ? 'Service' : 'Product');
   const [importance, setImportance] = useState('Normal');
   const [openingQty, setOpeningQty] = useState(0);
   const [unit, setUnit] = useState('no.s');
@@ -93,7 +95,7 @@ export default function EnterItemModal({
         
         {/* Header */}
         <div className="flex justify-between items-center bg-white px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-800">Enter Item</h2>
+          <h2 className="text-lg font-bold text-gray-800">{itemType === 'service' ? 'Add Service / Non-Stock Item' : 'Add Stock Item'}</h2>
           <div className="flex items-center gap-2">
             <button 
               onClick={handleSubmit}
@@ -108,7 +110,7 @@ export default function EnterItemModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+        <div className="p-6 flex flex-col gap-4">
           
           {/* Row 1: Name & Code */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
@@ -380,7 +382,8 @@ export default function EnterItemModal({
           {/* Footer Actions */}
           <div className="flex gap-2 mt-4 border-t border-gray-200 pt-4">
             <button 
-              type="submit" 
+              type="button" 
+              onClick={handleSubmit}
               className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-sm font-semibold flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" /> Save
@@ -393,8 +396,7 @@ export default function EnterItemModal({
               Close
             </button>
           </div>
-
-        </form>
+        </div>
       </div>
     </div>
   );

@@ -44,13 +44,19 @@ class DeliveryService:
         # Build items HTML table
         items_html = ""
         for item in quotation.items.all():
+            igst_pct = getattr(item, 'igst_percent', 0)
+            if igst_pct > 0:
+                tax_desc = f"{igst_pct:.2f}% IGST"
+            else:
+                tax_desc = f"{item.cgst_percent + item.sgst_percent:.2f}% (CGST+SGST)"
+            
             items_html += f"""
             <tr>
               <td>{item.item_description}</td>
               <td>{item.qty} {item.unit}</td>
               <td>{item.rate:.2f}</td>
               <td>{item.taxable:.2f}</td>
-              <td>{item.cgst_percent + item.sgst_percent}%</td>
+              <td>{tax_desc}</td>
               <td>{item.amt:.2f}</td>
             </tr>
             """
@@ -74,8 +80,13 @@ class DeliveryService:
             </div>
             """
 
-        # Build HTML body
-        html_body = f"""
+            total_igst_val = getattr(quotation, 'total_igst', 0)
+            if total_igst_val > 0:
+                tax_rows_html = f"Total IGST: INR {total_igst_val:.2f}<br/>"
+            else:
+                tax_rows_html = f"Total CGST: INR {quotation.total_cgst:.2f}<br/>Total SGST: INR {quotation.total_sgst:.2f}<br/>"
+
+            html_body = f"""
         <html>
         <head>
           <style>
@@ -120,8 +131,7 @@ class DeliveryService:
 
             <div class="totals">
               Total Taxable Value: INR {quotation.total_taxable:.2f}<br/>
-              Total CGST: INR {quotation.total_cgst:.2f}<br/>
-              Total SGST: INR {quotation.total_sgst:.2f}<br/>
+              {tax_rows_html}
               <strong>Grand Total: <span style="font-size: 16px; color: #2e7d32;">&#8377;{quotation.grand_total:.2f}</span></strong>
             </div>
 

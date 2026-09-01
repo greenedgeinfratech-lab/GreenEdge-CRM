@@ -33,22 +33,26 @@ class TaskService:
     @staticmethod
     def get_tasks_for_user(user, company, filter_type='all') -> list:
         """
-        Returns task list filtered by type.
-        filter_type: 'all' | 'today' | 'pending' | 'completed'
+        Returns task list filtered by status/type.
+        filter_type: 'all' | 'today' | 'pending' | 'in_progress' | 'completed'
         """
         today = timezone.localdate()
-        base_qs = Task.objects.filter(company=company, assigned_to=user)
+        base_qs = Task.objects.filter(company=company).filter(
+            Q(assigned_to=user) | Q(created_by=user) | Q(assigned_to__isnull=True)
+        )
 
-        if filter_type == 'today':
-            qs = base_qs.filter(due_date=today).exclude(status='completed')
+        if filter_type in ('today', 'due_today'):
+            qs = base_qs.filter(due_date=today)
         elif filter_type == 'pending':
             qs = base_qs.filter(status='pending')
+        elif filter_type == 'in_progress':
+            qs = base_qs.filter(status='in_progress')
         elif filter_type == 'completed':
             qs = base_qs.filter(status='completed')
         else:
-            qs = base_qs.exclude(status='completed').order_by('due_date', 'created_at')[:20]
+            qs = base_qs
 
-        return list(qs.select_related('assigned_to', 'created_by'))
+        return list(qs.select_related('assigned_to', 'created_by').order_by('-created_at'))
 
     @staticmethod
     def create_task(user, company, data: dict) -> Task:

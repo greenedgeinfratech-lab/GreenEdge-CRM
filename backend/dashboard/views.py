@@ -46,11 +46,11 @@ class TaskListCreateView(APIView):
     def get(self, request):
         company = request.user.company
         if not company:
-            return Response({'tasks': []})
-        filter_type = request.query_params.get('filter', 'all')
+            return Response([])
+        filter_type = request.query_params.get('status') or request.query_params.get('filter') or 'all'
         tasks = TaskService.get_tasks_for_user(request.user, company, filter_type)
         serializer = TaskSerializer(tasks, many=True)
-        return Response({'tasks': serializer.data})
+        return Response(serializer.data)
 
     def post(self, request):
         company = request.user.company

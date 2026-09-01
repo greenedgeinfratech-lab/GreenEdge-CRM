@@ -12,6 +12,7 @@ interface User {
   company: {
     id: string;
     name: string;
+    state?: string;
   };
 }
 

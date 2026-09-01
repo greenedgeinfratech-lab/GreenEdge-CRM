@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, CurrentUserView,
     CompanyViewSet, CostCenterViewSet, TeamViewSet, BranchViewSet, DepartmentViewSet,
-    DesignationViewSet, RoleViewSet, PermissionViewSet, EmployeeProfileViewSet, EmployeeDocumentViewSet
+    DesignationViewSet, RoleViewSet, PermissionViewSet, EmployeeProfileViewSet, EmployeeDocumentViewSet,
+    AttendanceRecordViewSet, SalaryRecordViewSet
 )
 
 router = DefaultRouter()
@@ -17,6 +18,8 @@ router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'permissions', PermissionViewSet, basename='permission')
 router.register(r'employees', EmployeeProfileViewSet, basename='employeeprofile')
 router.register(r'employee-documents', EmployeeDocumentViewSet, basename='employeedocument')
+router.register(r'attendance', AttendanceRecordViewSet, basename='attendance')
+router.register(r'salaries', SalaryRecordViewSet, basename='salary')
 
 urlpatterns = [
     path('auth/login/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),

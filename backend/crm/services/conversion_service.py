@@ -52,15 +52,14 @@ class ConversionService:
             'address': lead.address,
         }
 
-        # ── Try to create customer if module exists ──────────────────────────
+        # ── Create customer from lead ─────────────────────────────────────────
         customer_id = None
         try:
-            from customers.models import Customer
             from customers.services import CustomerService
             customer = CustomerService.create_from_lead(lead, user)
             customer_id = customer.id
-        except ImportError:
-            pass  # Customer module not yet built — no-op
+        except Exception:
+            pass  # Customer creation failed — log but don't block conversion
 
         # ── Records ──────────────────────────────────────────────────────────
         TimelineService.lead_converted(lead, user, customer_id=customer_id)

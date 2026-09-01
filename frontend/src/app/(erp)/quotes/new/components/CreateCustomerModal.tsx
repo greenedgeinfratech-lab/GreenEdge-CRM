@@ -6,16 +6,39 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/services/crmService';
 import { useToast } from '@/providers/ToastProvider';
 
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
+  'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+  'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands',
+  'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh',
+  'Lakshadweep', 'Puducherry'
+];
+
+const MAJOR_INDIAN_CITIES = [
+  'Mumbai', 'Delhi', 'Bengaluru', 'Kolkata', 'Chennai', 'Hyderabad', 'Ahmedabad', 'Pune', 'Surat', 'Jaipur',
+  'Lucknow', 'Kanpur', 'Nagpur', 'Indore', 'Thane', 'Bhopal', 'Visakhapatnam', 'Pimpri-Chinchwad', 'Patna',
+  'Vadodara', 'Ghaziabad', 'Ludhiana', 'Agra', 'Nashik', 'Faridabad', 'Meerut', 'Rajkot', 'Kalyan-Dombivli',
+  'Vasai-Virar', 'Varanasi', 'Srinagar', 'Dhanbad', 'Jodhpur', 'Allahabad', 'Amritsar', 'Navi Mumbai',
+  'Ranchi', 'Howrah', 'Coimbatore', 'Jabalpur', 'Gwalior', 'Vijayawada', 'Madurai', 'Kota', 'Guwahati',
+  'Chandigarh', 'Solapur', 'Hubli-Dharwad', 'Bareilly', 'Moradabad', 'Mysore', 'Tiruchirappalli', 'Jalandhar',
+  'Bhubaneswar', 'Dehradun', 'Durgapur', 'Asansol', 'Nanded', 'Kolhapur', 'Thiruvananthapuram', 'Salem',
+  'Ajmer', 'Nellore', 'Mangalore', 'Gorakhpur', 'Bhilai', 'Amravati', 'Bikaner', 'Noida', 'Gurgaon',
+  'Rajahmundry', 'Tiruppur', 'Rourkela', 'Malegaon'
+];
+
 interface CreateCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (customerName: string, billingAddress: string, contactName: string, id: string) => void;
+  onSuccess: (customerName: string, billingAddress: string, contactName: string, id: string, state?: string) => void;
+  title?: string;
 }
 
 export default function CreateCustomerModal({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  title = 'Create Customer'
 }: CreateCustomerModalProps) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -50,7 +73,7 @@ export default function CreateCustomerModal({
       const billingAddr = [addressLine1, addressLine2, city, state, country].filter(Boolean).join(', ');
       const newLeadId = res.data?.data?.id || '';
       
-      onSuccess(company, billingAddr, `${firstName} ${lastName}`.trim(), newLeadId);
+      onSuccess(company, billingAddr, `${firstName} ${lastName}`.trim(), newLeadId, state);
       onClose();
 
       
@@ -69,16 +92,32 @@ export default function CreateCustomerModal({
       setPincode('');
     },
     onError: (err: any) => {
-      showToast(err?.response?.data?.detail || 'Failed to create customer.', 'error');
+      const response = err?.response?.data;
+      const errors = response?.errors ? Object.values(response.errors).flat().join(' ') : null;
+      const message = errors || response?.detail || response?.message || 'Failed to create customer.';
+      showToast(message, 'error');
     }
   });
 
   if (!isOpen) return null;
 
+  const formatMobile = (value: string) => {
+    const digits = value.replace(/[^0-9]/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+    return digits;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName) {
       showToast('Contact name is required', 'error');
+      return;
+    }
+
+    const normalizedMobile = formatMobile(mobile);
+    if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
+      showToast('Enter a valid 10-digit mobile number starting with 6-9.', 'error');
       return;
     }
     
@@ -90,7 +129,7 @@ export default function CreateCustomerModal({
       first_name: firstName,
       last_name: lastName,
       company_name: businessName || `${firstName} ${lastName}`.trim(),
-      mobile: mobile,
+      mobile: normalizedMobile,
       email: email,
       gst_number: gstin,
       address: fullAddress,
@@ -128,7 +167,7 @@ export default function CreateCustomerModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+        <div className="p-6 flex flex-col gap-4">
           
           {/* Row 1: Contact Name & GSTIN */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
@@ -248,33 +287,37 @@ export default function CreateCustomerModal({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="font-semibold text-gray-600">City</label>
-              <select 
-                value={city} 
-                onChange={e => setCity(e.target.value)}
-                className="border border-gray-300 rounded-sm px-2.5 py-1.5 outline-none focus:border-green-600 w-full bg-white"
-              >
-                <option value="">Select City</option>
-                <option value="Mumbai">Mumbai</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Aligarh">Aligarh</option>
-                <option value="Noida">Noida</option>
-              </select>
-            </div>
+            <input
+              list="city-options"
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder="Search city"
+              className="border border-gray-300 rounded-sm px-2.5 py-1.5 outline-none focus:border-green-600 w-full bg-white"
+            />
+            <datalist id="city-options">
+              <option value="">Select City</option>
+              {MAJOR_INDIAN_CITIES.map((cityName) => (
+                <option key={cityName} value={cityName} />
+              ))}
+            </datalist>
+          </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="font-semibold text-gray-600">State</label>
-              <select 
-                value={state} 
-                onChange={e => setState(e.target.value)}
-                className="border border-gray-300 rounded-sm px-2.5 py-1.5 outline-none focus:border-green-600 w-full bg-white"
-              >
-                <option value="">Select State</option>
-                <option value="Maharashtra">Maharashtra</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Uttar Pradesh">Uttar Pradesh</option>
-                <option value="Haryana">Haryana</option>
-              </select>
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="font-semibold text-gray-600">State</label>
+            <input
+              list="state-options"
+              value={state}
+              onChange={e => setState(e.target.value)}
+              placeholder="Search state"
+              className="border border-gray-300 rounded-sm px-2.5 py-1.5 outline-none focus:border-green-600 w-full bg-white"
+            />
+            <datalist id="state-options">
+              <option value="">Select State</option>
+              {INDIAN_STATES.map((stateName) => (
+                <option key={stateName} value={stateName} />
+              ))}
+            </datalist>
+          </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="font-semibold text-gray-600">Country <span className="text-red-500">*</span></label>
@@ -313,7 +356,8 @@ export default function CreateCustomerModal({
           {/* Footer Actions */}
           <div className="flex gap-2 mt-4 border-t border-gray-200 pt-4">
             <button 
-              type="submit" 
+              type="button" 
+              onClick={handleSubmit}
               disabled={createLeadMutation.isPending}
               className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-sm font-semibold flex items-center gap-1.5"
             >
@@ -328,7 +372,7 @@ export default function CreateCustomerModal({
             </button>
           </div>
 
-        </form>
+        </div>
       </div>
     </div>
   );

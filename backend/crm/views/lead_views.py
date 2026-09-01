@@ -43,6 +43,7 @@ from crm.serializers.lead_serializers import (
 )
 from crm.services import LeadService, ImportExportService, ConversionService, DuplicateService
 from crm.services.command_center_service import LeadCommandCenterService
+from common.pagination import StandardResultsSetPagination
 
 
 @extend_schema(tags=['CRM — Leads'])
@@ -59,6 +60,7 @@ class LeadViewSet(ModelViewSet):
         'lead_score', 'next_followup_date', 'first_name',
     ]
     ordering = ['-created_at']
+    pagination_class = StandardResultsSetPagination
 
     def get_permissions(self):
         permission_map = {

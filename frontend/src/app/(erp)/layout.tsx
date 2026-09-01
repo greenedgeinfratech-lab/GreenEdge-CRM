@@ -6,7 +6,7 @@ import {
   Home, HelpCircle,
   Users, FileText, ShoppingCart, Receipt, Briefcase,
   Settings, Monitor, Truck, ClipboardList, Database,
-  ListChecks, Search, BarChart3, Store, RefreshCw, LogOut
+  ListChecks, Search, BarChart3, Store, LogOut, WalletCards
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 import NotificationWidget from '@/components/dashboard/widgets/NotificationWidget';
@@ -81,6 +81,8 @@ export default function DashboardLayout({
               <NavItem href="/purch-orders"  icon={<ClipboardList className="w-4 h-4" />} label="Purch Orders" pathname={pathname} />
               <NavItem href="/inventory"     icon={<Database className="w-4 h-4" />}      label="Inventory"   pathname={pathname} />
               <NavItem href="/manufacturing" icon={<Settings className="w-4 h-4" />}      label="Manufacturing" pathname={pathname} />
+              <NavItem href="/operations/executives" icon={<Users className="w-4 h-4" />}    label="Our Executives" pathname={pathname} />
+              <NavItem href="/operations/salary-management" icon={<WalletCards className="w-4 h-4" />} label="Salary Management" pathname={pathname} />
               <NavItem href="/tasks"         icon={<ListChecks className="w-4 h-4" />}    label="Tasks"       pathname={pathname} />
               <NavItem href="/suppliers"     icon={<Truck className="w-4 h-4" />}         label="Suppliers"   pathname={pathname} />
             </div>

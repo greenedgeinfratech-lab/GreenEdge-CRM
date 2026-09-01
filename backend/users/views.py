@@ -2,7 +2,7 @@ from django.conf import settings
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -166,13 +166,24 @@ from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
     Company, CostCenter, Team, Branch, Department, Designation,
-    Permission, Role, EmployeeProfile, EmployeeDocument
+    Permission, Role, EmployeeProfile, EmployeeDocument, AttendanceRecord, SalaryRecord
 )
 from .serializers import (
     CompanySerializer, CostCenterSerializer, TeamSerializer, BranchSerializer,
     DepartmentSerializer, DesignationSerializer, PermissionSerializer, RoleSerializer,
-    EmployeeProfileSerializer, EmployeeDocumentSerializer
+    EmployeeProfileSerializer, EmployeeDocumentSerializer, AttendanceRecordSerializer, SalaryRecordSerializer
 )
+
+
+class IsCompanyAdministrator(BasePermission):
+    """Allows payroll access to staff/superusers and company roles named Admin."""
+    message = 'Salary management is available to administrators only.'
+
+    def has_permission(self, request, view):
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+        role = getattr(getattr(request.user, 'employee_profile', None), 'role', None)
+        return bool(role and role.name.strip().lower() in {'admin', 'administrator'})
 
 class TenantModelViewSet(viewsets.ModelViewSet):
     """
@@ -279,3 +290,18 @@ class EmployeeDocumentViewSet(TenantModelViewSet):
     serializer_class = EmployeeDocumentSerializer
     filterset_fields = ['employee', 'document_type']
 
+
+class AttendanceRecordViewSet(TenantModelViewSet):
+    queryset = AttendanceRecord.objects.select_related('employee')
+    serializer_class = AttendanceRecordSerializer
+    permission_classes = [IsAuthenticated, IsCompanyAdministrator]
+    filterset_fields = ['employee', 'date', 'status']
+    ordering_fields = ['date', 'created_at']
+
+
+class SalaryRecordViewSet(TenantModelViewSet):
+    queryset = SalaryRecord.objects.select_related('employee')
+    serializer_class = SalaryRecordSerializer
+    permission_classes = [IsAuthenticated, IsCompanyAdministrator]
+    filterset_fields = ['employee', 'month', 'payment_status']
+    ordering_fields = ['month', 'created_at']

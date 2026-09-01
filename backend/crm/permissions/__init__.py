@@ -30,8 +30,13 @@ class CanViewCRM(CRMBasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
-        # Leads must belong to the same company
-        lead = getattr(obj, 'lead', obj)
+        # Check company ownership on the object directly, or via lead FK
+        obj_company = getattr(obj, 'company_id', None)
+        if obj_company and str(obj_company) == str(request.user.company_id):
+            return True
+        lead = getattr(obj, 'lead', None)
+        if lead is None:
+            return True  # No lead to check, allow access
         return str(getattr(lead, 'company_id', None)) == str(request.user.company_id)
 
 
@@ -109,21 +114,43 @@ class CanConvertLead(CRMBasePermission):
 
 # ─── Helpers ────────────────────────────────────────────────────────────────────
 
+PERMISSION_ALIASES = {
+    'view': ['crm.view', 'crm.view_lead'],
+    'create': ['crm.create', 'crm.add_lead'],
+    'edit': ['crm.edit', 'crm.change_lead'],
+    'delete': ['crm.delete', 'crm.delete_lead'],
+    'assign': ['crm.assign', 'crm.edit', 'crm.change_lead', 'crm.manage_settings'],
+    'export': ['crm.export', 'crm.view', 'crm.view_lead', 'crm.manage_settings'],
+    'import': ['crm.import', 'crm.create', 'crm.add_lead', 'crm.manage_settings'],
+    'convert': ['crm.convert', 'crm.create', 'crm.add_lead', 'crm.edit', 'crm.change_lead', 'crm.manage_settings'],
+}
+
+
 def _has_crm_permission(user, codename: str) -> bool:
     """
-    Check permission against the existing role/permission system.
-    Falls back to `is_staff` or `is_superuser` for now — replace with
-    RBAC lookup once the Permissions module is fully wired.
+    Check permission against the existing RBAC system.
+
+    Lookup chain:
+      User → EmployeeProfile → Role → Permissions
+
+    Superusers and staff always pass.
+    Users without an employee profile or role are denied.
     """
+    if not user or not user.is_authenticated:
+        return False
+
     if user.is_superuser or user.is_staff:
         return True
-    # TODO: integrate with RBAC — Role → Permission lookup
-    # from users.models import RolePermission
-    # return RolePermission.objects.filter(
-    #     role__employeeprofile__user=user,
-    #     permission__codename=f'crm.{codename}'
-    # ).exists()
-    return True  # Default permissive until RBAC is wired
+
+    try:
+        employee = getattr(user, 'employee_profile', None)
+        if not employee or not employee.role:
+            return False
+
+        target_codes = PERMISSION_ALIASES.get(codename, [f'crm.{codename}', codename])
+        return employee.role.permissions.filter(code__in=target_codes).exists()
+    except Exception:
+        return False
 
 
 def _get_employee_id(user):
@@ -131,3 +158,4 @@ def _get_employee_id(user):
         return user.employee_profile.id
     except Exception:
         return None
+

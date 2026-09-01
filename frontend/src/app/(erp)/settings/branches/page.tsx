@@ -23,11 +23,14 @@ export default function BranchesSettingsPage() {
 
   const fetchBranches = async (searchQuery = '') => {
     try {
+      setLoading(true);
       const res = await api.get(`/branches/?search=${searchQuery}`);
-      // Assuming DRF paginated response
-      setBranches(res.data.results || res.data);
+      const resData = res.data;
+      const rawList = resData?.data?.results || resData?.data || resData?.results || resData;
+      setBranches(Array.isArray(rawList) ? rawList : []);
     } catch (err) {
       console.error('Failed to fetch branches', err);
+      setBranches([]);
     } finally {
       setLoading(false);
     }

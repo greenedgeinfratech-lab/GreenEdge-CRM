@@ -32,6 +32,10 @@ class Command(BaseCommand):
             {'code': 'crm.create', 'module': 'CRM', 'description': 'Create CRM entities'},
             {'code': 'crm.edit', 'module': 'CRM', 'description': 'Edit CRM entities'},
             {'code': 'crm.delete', 'module': 'CRM', 'description': 'Delete CRM entities'},
+            {'code': 'crm.assign', 'module': 'CRM', 'description': 'Assign CRM leads'},
+            {'code': 'crm.export', 'module': 'CRM', 'description': 'Export CRM data'},
+            {'code': 'crm.import', 'module': 'CRM', 'description': 'Import CRM data'},
+            {'code': 'crm.convert', 'module': 'CRM', 'description': 'Convert CRM leads'},
             
             # Sales
             {'code': 'quotations.view', 'module': 'Sales', 'description': 'View quotations'},

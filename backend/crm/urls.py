@@ -48,7 +48,10 @@ from crm.views import (
     LeadNoteViewSet, LeadAttachmentViewSet,
     LeadTimelineView, LeadAssignmentHistoryView,
     CRMAnalyticsView, CRMDashboardSummaryView, RawLeadsDashboardView,
-    ReminderViewSet, QuotationViewSet, OrderViewSet,
+    ReminderViewSet, QuotationViewSet, OrderViewSet, InvoiceViewSet, DebitNoteViewSet, ProductCatalogViewSet,
+    PurchaseOrderViewSet,
+    AccountGroupViewSet, LedgerViewSet,
+    TransactionViewSet, InvoicePaymentViewSet,
 )
 
 # ── Root Router ───────────────────────────────────────────────────────────────
@@ -60,6 +63,14 @@ router.register(r'tags',         LeadTagViewSet,      basename='lead-tags')
 router.register(r'lost-reasons', LostReasonViewSet,   basename='lost-reasons')
 router.register(r'quotations',   QuotationViewSet,    basename='quotations')
 router.register(r'orders',       OrderViewSet,        basename='orders')
+router.register(r'invoices',     InvoiceViewSet,      basename='invoices')
+router.register(r'debit-notes',  DebitNoteViewSet,    basename='debit-notes')
+router.register(r'products',     ProductCatalogViewSet, basename='products')
+router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchase-orders')
+router.register(r'account-groups', AccountGroupViewSet, basename='account-groups')
+router.register(r'ledgers', LedgerViewSet, basename='ledgers')
+router.register(r'transactions', TransactionViewSet, basename='transactions')
+router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-payments')
 
 
 # ── Nested Router under /leads/{lead_pk}/ ─────────────────────────────────────

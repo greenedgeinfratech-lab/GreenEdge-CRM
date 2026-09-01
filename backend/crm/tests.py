@@ -1,5 +1,6 @@
-from django.test import TestCase
-
-class DummyTest(TestCase):
-    def test_dummy(self):
-        self.assertEqual(1, 1)
+# This file is intentionally left minimal.
+# All tests are in crm/tests/ package.
+from crm.tests.test_transactions import *  # noqa
+from crm.tests.test_payments import *  # noqa
+from crm.tests.test_quotation_convert import *  # noqa
+from crm.tests.test_ledgers import *  # noqa

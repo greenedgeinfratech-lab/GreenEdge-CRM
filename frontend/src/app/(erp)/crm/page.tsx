@@ -4,9 +4,10 @@ import React, { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
+import { useToast } from '@/providers/ToastProvider';
 import Link from 'next/link';
 import {
-  Search, Filter, Star, StarOff, Edit3, MessageCircle, List, Grid,
+  Search, Filter, Star, StarOff, Edit3, MessageCircle, Grid,
   ChevronDown, LineChart, Plus, Upload, Download, MoreHorizontal,
   ArrowUpDown, RefreshCw, Loader2, AlertCircle, Phone, Mail,
   CheckSquare, Square, ChevronLeft, ChevronRight, Check, Ban
@@ -79,6 +80,7 @@ function CRMContent() {
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const { user } = useAuth() || {};
+  const { showToast } = useToast();
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Data queries ──────────────────────────────────────────────────────────
@@ -265,8 +267,17 @@ function CRMContent() {
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  await leadsApi.import(file);
-                  queryClient.invalidateQueries({ queryKey: ['leads'] });
+                  try {
+                    const res = await leadsApi.import(file);
+                    const importedCount = (res.data as any)?.imported ?? 0;
+                    showToast(`Successfully imported ${importedCount} lead(s)`, 'success');
+                    queryClient.invalidateQueries({ queryKey: ['leads'] });
+                  } catch (err: any) {
+                    const errorDetail = err.response?.data?.detail || err.message || 'Failed to import CSV file';
+                    showToast(`Import failed: ${errorDetail}`, 'error');
+                  } finally {
+                    e.target.value = '';
+                  }
                 }
               }}
             />
@@ -274,12 +285,6 @@ function CRMContent() {
 
           {/* View toggle & Actions */}
           <div className="flex space-x-1">
-            <button
-              onClick={() => setView('list')}
-              className={`p-1.5 rounded text-sm ${view === 'list' ? 'bg-[#c2590e]' : 'bg-[#1a365d]'} text-white hover:opacity-80`}
-            >
-              <List className="w-4 h-4" />
-            </button>
             <button
               onClick={() => leadsApi.export(filters)}
               className="p-1.5 rounded text-sm bg-[#1a365d] text-white hover:bg-[#152a4a]"

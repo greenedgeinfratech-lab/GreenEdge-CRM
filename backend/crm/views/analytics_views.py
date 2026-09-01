@@ -33,14 +33,21 @@ class CRMAnalyticsView(APIView):
         qs = Lead.objects.filter(company=company)
 
         # ── Summary counts ──────────────────────────────────────────────────
-        total_active = qs.filter(is_active=True, status__in=['open', 'in_progress', 'on_hold']).count()
-        total_won    = qs.filter(status='won').count()
-        total_lost   = qs.filter(status='lost').count()
-        total_pipeline_value = qs.filter(
-            is_active=True, status__in=['open', 'in_progress', 'on_hold']
-        ).aggregate(v=Sum('estimated_value'))['v'] or 0
+        # Pipeline stages are the source of truth. Keep status values as a
+        # fallback for older leads that do not have a stage yet.
+        closed_statuses = ['won', 'lost', 'converted', 'archived']
+        active_leads = qs.filter(is_active=True).exclude(
+            Q(stage__is_won=True) | Q(stage__is_lost=True) | Q(status__in=closed_statuses)
+        )
+        won_leads = qs.filter(Q(stage__is_won=True) | Q(status__in=['won', 'converted']))
+        lost_leads = qs.filter(Q(stage__is_lost=True) | Q(status='lost'))
 
-        won_value = qs.filter(status='won').aggregate(v=Sum('estimated_value'))['v'] or 0
+        total_active = active_leads.count()
+        total_won = won_leads.count()
+        total_lost = lost_leads.count()
+        total_pipeline_value = active_leads.aggregate(v=Sum('estimated_value'))['v'] or 0
+
+        won_value = won_leads.aggregate(v=Sum('estimated_value'))['v'] or 0
         conversion_rate = round(total_won / (total_won + total_lost) * 100, 1) if (total_won + total_lost) else 0
         avg_score = qs.filter(is_active=True).aggregate(v=Avg('lead_score'))['v'] or 0
 
@@ -49,7 +56,7 @@ class CRMAnalyticsView(APIView):
 
         # ── Leads by source ────────────────────────────────────────────────
         by_source = list(
-            qs.filter(is_active=True, source__isnull=False)
+            active_leads.filter(source__isnull=False)
             .values('source__name')
             .annotate(count=Count('id'), value=Sum('estimated_value'))
             .order_by('-count')
@@ -57,7 +64,7 @@ class CRMAnalyticsView(APIView):
 
         # ── Leads by priority ──────────────────────────────────────────────
         by_priority = list(
-            qs.filter(is_active=True)
+            active_leads
             .values('priority')
             .annotate(count=Count('id'))
             .order_by('-count')

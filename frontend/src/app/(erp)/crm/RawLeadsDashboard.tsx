@@ -1,194 +1,108 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { 
-  MessageSquare, CheckCircle, XCircle, Users, 
-  Calendar, CalendarX, UserX, AlertTriangle, 
-  MapPin, DollarSign, PieChart as PieChartIcon, BarChart2 
+import {
+  AlertCircle, Calendar, CalendarX, CheckCircle, DollarSign,
+  MessageSquare, Users, UserX, XCircle,
 } from 'lucide-react';
 import api from '@/lib/api';
 
-const fetchDashboardData = async (period: string) => {
-  const { data } = await api.get(`/crm/raw-dashboard/?period=${period}`);
+type BreakdownItem = { name: string; value: number };
+type AnalyticsBreakdown = {
+  source__name?: string;
+  name?: string;
+  priority?: string;
+  count?: number;
+  value?: number;
+};
+
+const fetchDashboardData = async () => {
+  const { data } = await api.get('/crm/analytics/');
   return data;
 };
 
-const COLORS = ['#d97706', '#ea580c', '#f59e0b', '#ca8a04', '#eab308'];
+const formatCurrency = (value: number | string | undefined | null) => {
+  const number = Number(value);
+  if (Number.isNaN(number) || value == null) return '—';
+  if (number >= 100000) return `₹${(number / 100000).toFixed(1)}L`;
+  if (number >= 1000) return `₹${(number / 1000).toFixed(1)}K`;
+  return `₹${number.toFixed(0)}`;
+};
 
 export default function RawLeadsDashboard() {
-  const [period, setPeriod] = useState('this_month');
-  
-  const { data, isLoading } = useQuery({
-    queryKey: ['raw_leads_dashboard', period],
-    queryFn: () => fetchDashboardData(period),
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['lead-dashboard'],
+    queryFn: fetchDashboardData,
   });
 
-  if (isLoading) {
-    return <div className="p-8 text-center text-gray-500">Loading dashboard...</div>;
+  if (isLoading) return <div className="p-8 text-center text-gray-500">Loading lead dashboard…</div>;
+
+  if (isError) {
+    return (
+      <div className="rounded border border-red-200 bg-red-50 p-5 text-center text-red-700">
+        <div className="flex items-center justify-center gap-2"><AlertCircle className="h-5 w-5" />Failed to load the lead dashboard.</div>
+        <p className="mt-2 text-sm">{(error as Error)?.message || 'Please refresh and try again.'}</p>
+      </div>
+    );
   }
 
-  const kpiData = data || {};
+  const summary = data?.summary ?? {};
+  const sourceItems: BreakdownItem[] = (data?.by_source ?? []).map((item: AnalyticsBreakdown) => ({
+    name: item.source__name || item.name || 'Unknown', value: item.count ?? item.value ?? 0,
+  }));
+  const priorityItems: BreakdownItem[] = (data?.by_priority ?? []).map((item: AnalyticsBreakdown) => ({
+    name: item.priority || item.name || 'Unknown', value: item.count ?? 0,
+  }));
+  const metrics = [
+    { label: 'Active leads', value: summary.total_active ?? 0, icon: Users },
+    { label: 'Won leads', value: summary.total_won ?? 0, icon: CheckCircle },
+    { label: 'Lost leads', value: summary.total_lost ?? 0, icon: XCircle },
+    { label: 'Pipeline value', value: formatCurrency(summary.total_pipeline_value), icon: DollarSign },
+    { label: 'Follow-ups today', value: summary.todays_followups ?? 0, icon: Calendar },
+    { label: 'Overdue follow-ups', value: summary.overdue_followups ?? 0, icon: CalendarX },
+    { label: 'Appointments today', value: summary.todays_appointments ?? 0, icon: MessageSquare },
+    { label: 'Average score', value: summary.avg_score ? `${Number(summary.avg_score).toFixed(0)}%` : '—', icon: UserX },
+  ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      {/* Main Content */}
-      <div className="flex-1 space-y-6">
-        
-        {/* Header */}
-        <div className="flex flex-col gap-4">
-          <h2 className="text-2xl font-normal text-gray-800">Raw Leads Dashboard</h2>
-          <select 
-            value={period}
-            onChange={e => setPeriod(e.target.value)}
-            className="w-40 border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-orange-500 bg-white"
-          >
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="this_year">This Year</option>
-          </select>
-        </div>
-
-        {/* Top KPIs (Orange) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Leads Received', value: kpiData.leads_received, icon: MessageSquare },
-            { label: 'Qualified Leads', value: kpiData.qualified_leads, icon: CheckCircle },
-            { label: 'Rejected Leads', value: kpiData.rejected_leads, icon: XCircle },
-            { label: 'Active Leads', value: kpiData.active_leads, icon: Users },
-          ].map((item, i) => (
-            <div key={i} className="bg-[#c2590e] text-white p-4 rounded-sm shadow-sm flex justify-between items-start">
-              <div>
-                <div className="text-sm font-medium mb-1">{item.label}</div>
-                <div className="text-3xl">{item.value || 0}</div>
-              </div>
-              <item.icon className="w-5 h-5 opacity-80" />
-            </div>
-          ))}
-        </div>
-
-        {/* Secondary KPIs (Grey) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Appointments', value: kpiData.appointments, icon: Calendar },
-            { label: 'Missed Appointments', value: kpiData.missed_appointments, icon: CalendarX },
-            { label: 'No Interactions', value: kpiData.no_interactions, icon: UserX },
-            { label: 'Unassigned Leads', value: kpiData.unassigned_leads, icon: AlertTriangle },
-          ].map((item, i) => (
-            <div key={i} className="bg-gray-100 border border-gray-200 text-gray-800 p-4 rounded-sm shadow-sm flex justify-between items-start">
-              <div>
-                <div className="text-sm font-medium text-gray-600 mb-1">{item.label}</div>
-                <div className="text-3xl font-medium">{item.value || 0}</div>
-              </div>
-              <item.icon className="w-5 h-5 text-gray-600" />
-            </div>
-          ))}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Travel History', icon: MapPin },
-            { label: 'Sales Credit Report', icon: DollarSign },
-            { label: 'Source Analysis', icon: PieChartIcon },
-            { label: 'Product Analysis', icon: BarChart2 },
-          ].map((item, i) => (
-            <button key={i} className="bg-gray-100 border border-gray-200 hover:bg-gray-200 transition-colors text-gray-700 p-3 rounded-sm flex justify-between items-center text-sm">
-              <span>{item.label}</span>
-              <item.icon className="w-4 h-4 text-gray-600" />
-            </button>
-          ))}
-        </div>
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-          <div className="flex flex-col items-center">
-            <h3 className="text-center text-gray-700 mb-4">Source-wise Leads</h3>
-            <div className="w-full h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={kpiData.source_wise || []}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ percent }: any) => (percent || 0) > 0 ? `${((percent || 0) * 100).toFixed(0)}%` : ''}
-                  >
-                    {(kpiData.source_wise || []).map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 flex flex-col gap-1 text-xs text-gray-600">
-              {(kpiData.source_wise || []).map((entry: any, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  {entry.name}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center">
-            <h3 className="text-center text-gray-700 mb-4">Product-wise Leads</h3>
-            <div className="w-full h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={kpiData.product_wise || []}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ percent }: any) => (percent || 0) > 0 ? `${((percent || 0) * 100).toFixed(0)}%` : ''}
-                  >
-                    {(kpiData.product_wise || []).map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-             <div className="mt-4 flex flex-col gap-1 text-xs text-gray-600">
-              {(kpiData.product_wise || []).map((entry: any, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  {entry.name}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-normal text-gray-800">Lead dashboard</h2>
+        <p className="mt-1 text-sm text-gray-600">A quick view of your active pipeline and today&apos;s work.</p>
       </div>
 
-      {/* Right Sidebar (Key Data) */}
-      <div className="w-full lg:w-64 bg-[#f3f4f6] border border-[#e5e7eb] p-6 flex flex-col gap-6 mt-[72px]">
-        <h3 className="text-lg text-gray-800 border-b border-gray-300 pb-2">Key Data</h3>
-        
-        {[
-          { label: 'Max Converted', value: kpiData.key_data?.max_converted || '-' },
-          { label: 'Max Count', value: kpiData.key_data?.max_count || '-' },
-          { label: 'Most Missed Appointments', value: kpiData.key_data?.most_missed_appointments || '-' },
-          { label: 'Most Uncontacted', value: kpiData.key_data?.most_uncontacted || '-' },
-          { label: 'Most Rejected', value: kpiData.key_data?.most_rejected || '-' },
-          { label: 'Best Source', value: kpiData.key_data?.best_source || '-' },
-          { label: 'Best Product', value: kpiData.key_data?.best_product || '-' },
-          { label: 'Max Inquiries from', value: '-' },
-        ].map((stat, i) => (
-          <div key={i} className="flex flex-col">
-            <span className="text-xs text-gray-500 mb-1">{stat.label}</span>
-            <span className="text-sm text-gray-800">{stat.value}</span>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              {metric.label}<metric.icon className="h-4 w-4 text-[#1a365d]" />
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-gray-900">{metric.value}</div>
           </div>
         ))}
       </div>
-    </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded border border-gray-200 bg-white p-4">
+          <h3 className="font-medium text-gray-900">Pipeline health</h3>
+          <dl className="mt-3 space-y-3 text-sm">
+            <div className="flex justify-between"><dt className="text-gray-600">Conversion rate</dt><dd className="font-medium">{Number(summary.conversion_rate || 0).toFixed(1)}%</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-600">Won value</dt><dd className="font-medium">{formatCurrency(summary.won_value)}</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-600">Pipeline stages</dt><dd className="font-medium">{(data?.by_stage ?? []).length}</dd></div>
+          </dl>
+        </div>
+        {[{ title: 'Leads by source', items: sourceItems }, { title: 'Leads by priority', items: priorityItems }].map((breakdown) => (
+          <div key={breakdown.title} className="rounded border border-gray-200 bg-white p-4">
+            <h3 className="font-medium text-gray-900">{breakdown.title}</h3>
+            {breakdown.items.length ? (
+              <ul className="mt-3 space-y-2 text-sm">
+                {breakdown.items.map((item) => (
+                  <li key={item.name} className="flex justify-between"><span className="capitalize text-gray-600">{item.name}</span><span className="font-medium">{item.value}</span></li>
+                ))}
+              </ul>
+            ) : <p className="mt-3 text-sm text-gray-500">No active leads to show.</p>}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

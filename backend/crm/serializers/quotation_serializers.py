@@ -7,7 +7,7 @@ class QuotationItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'item_description', 'hsn_sac', 'qty', 'unit',
             'rate', 'discount', 'taxable', 'cgst_percent', 'sgst_percent',
-            'cgst_amt', 'sgst_amt', 'amt', 'lead_time'
+            'igst_percent', 'cgst_amt', 'sgst_amt', 'igst_amt', 'amt', 'lead_time'
         ]
         read_only_fields = ['id']
 
@@ -25,7 +25,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             'quote_number', 'reference', 'quote_date', 'valid_till',
             'notes', 'bank_details', 'terms_conditions',
             'extra_charge', 'custom_discount', 'total_taxable',
-            'total_cgst', 'total_sgst', 'grand_total',
+            'total_cgst', 'total_sgst', 'total_igst', 'grand_total',
             'share_email', 'share_whatsapp', 'print_after_save', 'alert_on_opening',
             'status', 'type', 'items', 'created_at', 'updated_at', 'created_by', 'issued_by_name'
         ]
