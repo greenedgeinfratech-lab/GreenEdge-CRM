@@ -10,17 +10,29 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
+        migrations.RemoveField(
+            model_name='leadtimeline',
+            name='related_appointment_id',
+        ),
+        migrations.RemoveField(
+            model_name='leadtimeline',
+            name='related_followup_id',
+        ),
+        migrations.RemoveField(
+            model_name='leadtimeline',
+            name='related_note_id',
+        ),
+        migrations.AddField(
             model_name='leadtimeline',
             name='related_appointment_id',
             field=models.UUIDField(blank=True, null=True),
         ),
-        migrations.AlterField(
+        migrations.AddField(
             model_name='leadtimeline',
             name='related_followup_id',
             field=models.UUIDField(blank=True, null=True),
         ),
-        migrations.AlterField(
+        migrations.AddField(
             model_name='leadtimeline',
             name='related_note_id',
             field=models.UUIDField(blank=True, null=True),
