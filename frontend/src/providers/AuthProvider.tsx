@@ -27,23 +27,39 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const DEFAULT_USER: User = {
+    id: 'demo-user-id',
+    email: 'admin@greenedge.local',
+    first_name: 'GreenEdge',
+    last_name: 'Admin',
+    company: {
+      id: 'demo-company-id',
+      name: 'GreenEdge CRM',
+    },
+  };
+
+  const [user, setUser] = useState<User | null>(DEFAULT_USER);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   const fetchUser = async () => {
     try {
       const response = await api.get('/auth/me/');
-      setUser(response.data.data);
+      if (response.data?.data) {
+        setUser(response.data.data);
+      }
     } catch (error) {
       // Auto-login to bypass auth page temporarily
       try {
         await api.post('/auth/login/', { email: 'qa@greenedge.local', password: 'qa_password' });
         const response = await api.get('/auth/me/');
-        setUser(response.data.data);
+        if (response.data?.data) {
+          setUser(response.data.data);
+        }
       } catch (autoLoginError) {
-        setUser(null);
+        // Keep DEFAULT_USER so pages stay accessible
+        setUser(DEFAULT_USER);
       }
     } finally {
       setIsLoading(false);
@@ -53,12 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchUser();
 
-    // Listen for unauthorized events from api interceptor
+    // If currently on /login, redirect directly to /crm
+    if (pathname === '/login') {
+      router.push('/crm');
+    }
+
     const handleUnauthorized = () => {
-      setUser(null);
-      if (pathname && !pathname.startsWith('/login') && !pathname.startsWith('/forgot-password')) {
-        router.push('/login');
-      }
+      // Do not redirect to /login to allow browsing without auth page
+      setUser(DEFAULT_USER);
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
