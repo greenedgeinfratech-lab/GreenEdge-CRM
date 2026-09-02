@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
+  baseURL: `${API_BASE_URL}/api/v1`,
   withCredentials: true, // Crucial for sending/receiving HttpOnly cookies
   headers: {
     'Content-Type': 'application/json',
@@ -24,7 +26,7 @@ api.interceptors.response.use(
 
       try {
         // Attempt to refresh the token using the HttpOnly refresh token cookie
-        await axios.post('http://localhost:8000/api/v1/auth/refresh/', {}, { withCredentials: true });
+        await axios.post(`${API_BASE_URL}/api/v1/auth/refresh/`, {}, { withCredentials: true });
         
         // Retry the original request
         return api(originalRequest);
